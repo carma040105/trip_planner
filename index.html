@@ -8,572 +8,797 @@
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { 
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: #f3f4f6;
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans KR', sans-serif;
+      background: #f0f2f5;
       color: #1f2937;
-    }
-    
-    .container { display: flex; height: 100vh; }
-    
-    .sidebar {
-      width: 384px;
-      background: white;
-      display: flex;
-      flex-direction: column;
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      height: 100vh;
       overflow: hidden;
     }
-    
-    .header {
-      background: linear-gradient(135deg, #2563eb, #9333ea);
-      color: white;
-      padding: 24px;
-    }
-    
-    .header h1 { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
-    .header p { font-size: 13px; opacity: 0.9; }
-    
-    .tabs {
+
+    /* ── 전체 레이아웃 ── */
+    #app { display: flex; height: 100vh; overflow: hidden; }
+
+    /* ── 왼쪽 패널 (30%) ── */
+    .left-panel {
+      width: 30%;
+      min-width: 300px;
+      background: #fff;
       display: flex;
-      border-bottom: 1px solid #e5e7eb;
-      background: #f9fafb;
+      flex-direction: column;
+      box-shadow: 2px 0 12px rgba(0,0,0,.08);
+      z-index: 10;
+      overflow: hidden;
     }
-    
-    .tab {
-      flex: 1;
+
+    .left-header {
+      background: linear-gradient(135deg, #1e40af, #7c3aed);
+      color: #fff;
+      padding: 18px 20px 14px;
+      flex-shrink: 0;
+    }
+    .left-header h1 { font-size: 18px; font-weight: 700; }
+    .left-header p  { font-size: 11px; opacity: .8; margin-top: 3px; }
+
+    /* 검색 */
+    .search-bar {
       padding: 12px 16px;
-      cursor: pointer;
-      border-bottom: 2px solid transparent;
-      text-align: center;
+      border-bottom: 1px solid #e5e7eb;
+      flex-shrink: 0;
+    }
+    .search-bar input {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
       font-size: 13px;
+      outline: none;
+      font-family: inherit;
+    }
+    .search-bar input:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px #dbeafe; }
+
+    /* 날짜 선택 */
+    .date-nav {
+      display: flex;
+      gap: 6px;
+      padding: 10px 16px;
+      overflow-x: auto;
+      border-bottom: 1px solid #e5e7eb;
+      flex-shrink: 0;
+    }
+    .date-nav::-webkit-scrollbar { height: 4px; }
+    .date-nav::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 2px; }
+    .date-chip {
+      flex-shrink: 0;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 11px;
       font-weight: 600;
-      color: #6b7280;
-      transition: all 0.2s;
+      cursor: pointer;
+      border: 1px solid #d1d5db;
+      background: #f9fafb;
+      color: #374151;
+      transition: all .18s;
+      white-space: nowrap;
     }
-    
-    .tab:hover { background: #f3f4f6; }
-    .tab.active { 
-      background: white;
-      color: #2563eb;
-      border-bottom-color: #2563eb;
-    }
-    
-    .content {
+    .date-chip:hover { border-color: #3b82f6; color: #3b82f6; }
+    .date-chip.active { background: #2563eb; color: #fff; border-color: #2563eb; }
+    .date-chip.fixed  { border-color: #f59e0b; }
+    .date-chip.fixed.active { background: #d97706; border-color: #d97706; }
+
+    /* 이벤트 리스트 */
+    .event-list {
       flex: 1;
       overflow-y: auto;
-      padding: 16px;
+      padding: 12px 16px;
     }
-    
-    .date-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 8px;
-      margin-bottom: 16px;
-    }
-    
-    .date-btn {
-      padding: 10px 8px;
-      border: 1px solid #d1d5db;
-      background: white;
-      border-radius: 6px;
+    .event-list::-webkit-scrollbar { width: 4px; }
+    .event-list::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 2px; }
+
+    /* 이벤트 카드 */
+    .event-card {
+      background: #f8fafc;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 10px;
       cursor: pointer;
-      font-size: 11px;
-      font-weight: 600;
-      transition: all 0.2s;
-      text-align: center;
+      transition: all .18s;
+      position: relative;
     }
-    
-    .date-btn:hover { border-color: #2563eb; }
-    .date-btn.active { 
-      background: #2563eb;
-      color: white;
-      border-color: #2563eb;
+    .event-card:hover  { border-color: #93c5fd; background: #f0f7ff; }
+    .event-card.active { border-color: #2563eb; background: #eff6ff; box-shadow: 0 0 0 2px #bfdbfe; }
+    .event-card.fixed  { border-left: 4px solid #2563eb; }
+
+    .card-time   { font-size: 11px; font-weight: 700; color: #2563eb; margin-bottom: 4px; }
+    .card-title  { font-size: 13px; font-weight: 600; color: #111827; }
+    .card-place  { font-size: 11px; color: #6b7280; margin-top: 3px; }
+    .card-memo   { font-size: 11px; color: #9ca3af; margin-top: 3px; font-style: italic; }
+
+    .card-actions {
+      display: flex;
+      gap: 6px;
+      margin-top: 10px;
+      flex-wrap: wrap;
     }
-    
-    .date-btn.fixed {
-      border: 2px solid #fbbf24;
-    }
-    
-    .event-list { display: flex; flex-direction: column; gap: 10px; }
-    
-    .event-item {
-      background: #dbeafe;
-      border-left: 4px solid #2563eb;
-      padding: 12px;
+    .card-btn {
+      padding: 4px 10px;
       border-radius: 4px;
-    }
-    
-    .event-time {
-      font-weight: 700;
-      color: #1e40af;
-      font-size: 12px;
-    }
-    
-    .event-title {
+      font-size: 11px;
       font-weight: 600;
-      color: #111827;
-      font-size: 13px;
-      margin-top: 4px;
-    }
-    
-    .event-desc {
-      color: #4b5563;
-      font-size: 12px;
-      margin-top: 4px;
-    }
-    
-    .event-address {
-      color: #6b7280;
-      font-size: 11px;
-      margin-top: 4px;
-    }
-    
-    .btn-delete {
-      color: #dc2626;
-      font-size: 11px;
-      margin-top: 6px;
+      border: none;
       cursor: pointer;
-      font-weight: 600;
+      transition: all .15s;
     }
-    
-    .btn-delete:hover { text-decoration: underline; }
-    
+    .card-btn.edit   { background: #dbeafe; color: #1d4ed8; }
+    .card-btn.edit:hover   { background: #bfdbfe; }
+    .card-btn.move   { background: #d1fae5; color: #065f46; }
+    .card-btn.move:hover   { background: #a7f3d0; }
+    .card-btn.del    { background: #fee2e2; color: #dc2626; }
+    .card-btn.del:hover    { background: #fecaca; }
+    .card-btn.naver  { background: #ecfccb; color: #365314; }
+    .card-btn.naver:hover  { background: #d9f99d; }
+
     .empty-state {
       text-align: center;
       color: #9ca3af;
-      padding: 32px 16px;
-      font-size: 12px;
+      padding: 36px 0;
+      font-size: 13px;
     }
-    
-    .place-item {
-      background: #f3f4f6;
-      border: 1px solid #e5e7eb;
-      border-radius: 6px;
-      padding: 12px;
-      margin-bottom: 12px;
-      transition: all 0.2s;
+    .empty-state p { margin-bottom: 6px; }
+
+    /* 추가 버튼 */
+    .add-btn-wrap {
+      padding: 12px 16px;
+      border-top: 1px solid #e5e7eb;
+      flex-shrink: 0;
     }
-    
-    .place-item:hover { background: #f0f1f3; }
-    
-    .place-name { font-weight: 600; font-size: 13px; color: #111827; }
-    .place-category { 
-      color: #2563eb;
-      font-size: 11px;
-      font-weight: 600;
-      margin-top: 6px;
-    }
-    
-    .place-address {
-      color: #6b7280;
-      font-size: 11px;
-      margin-top: 4px;
-    }
-    
-    .place-phone {
-      color: #9ca3af;
-      font-size: 10px;
-      margin-top: 4px;
-    }
-    
-    .btn-add {
-      width: 100%;
-      padding: 8px;
-      background: #22c55e;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      font-size: 11px;
-      font-weight: 600;
-      cursor: pointer;
-      margin-top: 8px;
-      transition: all 0.2s;
-    }
-    
-    .btn-add:hover { background: #16a34a; }
-    
-    .btn-action {
+    .add-btn {
       width: 100%;
       padding: 10px;
+      background: #2563eb;
+      color: #fff;
       border: none;
-      border-radius: 4px;
+      border-radius: 8px;
       font-size: 13px;
       font-weight: 600;
       cursor: pointer;
-      margin-top: 12px;
-      transition: all 0.2s;
+      transition: background .18s;
     }
-    
-    .btn-primary {
-      background: #2563eb;
-      color: white;
+    .add-btn:hover { background: #1d4ed8; }
+
+    /* ── 오른쪽 패널 (70%) ── */
+    .right-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: #f0f2f5;
     }
-    
-    .btn-primary:hover { background: #1d4ed8; }
-    
-    .map { flex: 1; background: #d1d5db; }
-    
-    .modal {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.5);
+
+    /* 오른쪽 상단 – 장소 상세 */
+    .detail-panel {
+      background: #fff;
+      border-bottom: 1px solid #e5e7eb;
+      padding: 20px 28px;
+      flex-shrink: 0;
+    }
+    .detail-placeholder {
+      color: #9ca3af;
+      font-size: 13px;
+      padding: 20px 28px;
+      background: #fff;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .detail-title   { font-size: 20px; font-weight: 700; color: #111827; margin-bottom: 6px; }
+    .detail-time    { font-size: 13px; color: #2563eb; font-weight: 600; margin-bottom: 8px; }
+    .detail-address { font-size: 13px; color: #4b5563; margin-bottom: 6px; }
+    .detail-memo    { font-size: 13px; color: #6b7280; font-style: italic; margin-bottom: 12px; }
+    .detail-btns    { display: flex; gap: 10px; flex-wrap: wrap; }
+    .detail-btn {
+      padding: 8px 18px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      transition: all .18s;
+    }
+    .detail-btn.primary { background: #2563eb; color: #fff; }
+    .detail-btn.primary:hover { background: #1d4ed8; }
+    .detail-btn.secondary { background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; }
+    .detail-btn.secondary:hover { background: #e5e7eb; }
+
+    /* 오른쪽 하단 – 지도 */
+    .map-area {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+    #naver-map { width: 100%; height: 100%; }
+    .map-placeholder {
+      width: 100%;
+      height: 100%;
       display: flex;
       align-items: center;
       justify-content: center;
-      z-index: 50;
+      flex-direction: column;
+      gap: 12px;
+      color: #9ca3af;
+      background: #f9fafb;
     }
-    
-    .modal-content {
-      background: white;
-      border-radius: 8px;
-      padding: 24px;
-      max-width: 400px;
-      width: 90%;
-      box-shadow: 0 20px 25px rgba(0, 0, 0, 0.15);
+    .map-placeholder svg { width: 64px; height: 64px; opacity: .3; }
+    .map-placeholder p { font-size: 14px; }
+
+    /* ── 모달 ── */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
     }
-    
-    .modal-header { font-size: 18px; font-weight: 700; margin-bottom: 16px; }
-    
-    .modal-place {
-      background: #dbeafe;
-      border: 1px solid #93c5fd;
-      border-radius: 6px;
-      padding: 12px;
-      margin-bottom: 16px;
+    .modal-box {
+      background: #fff;
+      border-radius: 12px;
+      padding: 28px;
+      width: 460px;
+      max-width: 95vw;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(0,0,0,.18);
     }
-    
-    .modal-place-name { font-weight: 600; color: #1f2937; }
-    .modal-place-addr { font-size: 12px; color: #4b5563; margin-top: 4px; }
-    .modal-place-cat { 
-      font-size: 11px;
-      color: #2563eb;
-      font-weight: 600;
-      margin-top: 8px;
+    .modal-box::-webkit-scrollbar { width: 4px; }
+    .modal-box::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 2px; }
+    .modal-title {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 20px;
+      color: #111827;
     }
-    
-    .form-group {
-      margin-bottom: 16px;
-    }
-    
+    .form-group { margin-bottom: 14px; }
     .form-label {
       display: block;
       font-size: 12px;
       font-weight: 600;
       color: #374151;
-      margin-bottom: 6px;
+      margin-bottom: 5px;
     }
-    
-    .form-input {
+    .form-input, .form-textarea, .form-select {
       width: 100%;
-      padding: 8px 12px;
+      padding: 9px 12px;
       border: 1px solid #d1d5db;
-      border-radius: 4px;
+      border-radius: 6px;
       font-size: 13px;
       font-family: inherit;
-    }
-    
-    .form-input:focus {
       outline: none;
-      border-color: #2563eb;
+      transition: border-color .15s;
+      color: #111827;
+      background: #fff;
+    }
+    .form-input:focus, .form-textarea:focus, .form-select:focus {
+      border-color: #3b82f6;
       box-shadow: 0 0 0 3px #dbeafe;
     }
-    
-    .modal-buttons {
+    .form-textarea { resize: vertical; min-height: 64px; }
+    .form-hint { font-size: 11px; color: #9ca3af; margin-top: 4px; }
+    .modal-btns {
       display: flex;
-      gap: 8px;
+      gap: 10px;
+      margin-top: 22px;
     }
-    
-    .btn-modal {
+    .modal-btn {
       flex: 1;
-      padding: 10px;
+      padding: 11px;
       border: none;
-      border-radius: 4px;
+      border-radius: 7px;
+      font-size: 14px;
       font-weight: 600;
       cursor: pointer;
+      transition: all .18s;
+    }
+    .modal-btn.confirm { background: #2563eb; color: #fff; }
+    .modal-btn.confirm:hover { background: #1d4ed8; }
+    .modal-btn.cancel  { background: #f3f4f6; color: #374151; }
+    .modal-btn.cancel:hover  { background: #e5e7eb; }
+
+    /* 날짜 변경 모달 */
+    .date-move-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .date-move-btn {
+      padding: 12px;
+      border-radius: 8px;
+      border: 1.5px solid #e5e7eb;
+      background: #f9fafb;
+      cursor: pointer;
       font-size: 13px;
-      transition: all 0.2s;
-    }
-    
-    .btn-confirm {
-      background: #2563eb;
-      color: white;
-    }
-    
-    .btn-confirm:hover { background: #1d4ed8; }
-    
-    .btn-cancel {
-      background: #d1d5db;
+      font-weight: 600;
       color: #374151;
+      transition: all .18s;
+      text-align: center;
     }
-    
-    .btn-cancel:hover { background: #9ca3af; }
+    .date-move-btn:hover  { border-color: #2563eb; color: #2563eb; background: #eff6ff; }
+    .date-move-btn.current { border-color: #d1d5db; color: #9ca3af; cursor: default; background: #f3f4f6; }
+
+    /* 반응형 */
+    @media (max-width: 768px) {
+      #app { flex-direction: column; }
+      .left-panel { width: 100%; min-width: 0; height: 55vh; }
+      .right-panel { height: 45vh; }
+    }
   </style>
 </head>
 <body>
-  <div id="root"></div>
+<div id="root"></div>
 
-  <script type="text/babel">
-    const { useState, useEffect, useRef } = React;
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
 
-    const REFERENCE_PLACES = [
-      { id: 101, name: '대우정', address: '제주 제주시 동문로 14길 20', phone: '064-753-4567', category: '전복돌솥밥', lat: 33.5062, lng: 126.5268 },
-      { id: 102, name: '문게야', address: '제주 서귀포시 표선면 표선로 476-1', phone: '064-787-8900', category: '문어요리', lat: 33.2480, lng: 126.3190 },
-      { id: 103, name: '성신밥곡', address: '제주 제주시 노형로', phone: '', category: '밥과 반찬', lat: 33.4980, lng: 126.5100 },
-      { id: 104, name: '우금', address: '제주 제주시 애월읍', phone: '', category: '한식', lat: 33.4650, lng: 126.3080 },
-      { id: 105, name: '광어다 표선 본점', address: '제주 서귀포시 표선면 표선로 181', phone: '064-784-5555', category: '생선회', lat: 33.2500, lng: 126.3210 },
-      { id: 106, name: '문게여럿', address: '제주 제주시 동문로', phone: '', category: '한식', lat: 33.5030, lng: 126.5280 },
-      { id: 107, name: '반네식당', address: '제주 제주시 연동', phone: '', category: '한식', lat: 33.5090, lng: 126.5210 },
-      { id: 108, name: '삼달리 벨녀른정원', address: '제주 제주시 삼도이동', phone: '', category: '해물요리', lat: 33.5120, lng: 126.5290 },
-      { id: 109, name: '물질식육식당', address: '제주 제주시 애월읍', phone: '', category: '돼지고기', lat: 33.4700, lng: 126.3150 },
-      { id: 110, name: '둥막골 삶화정', address: '제주 제주시 조천읍', phone: '', category: '한식', lat: 33.4820, lng: 126.5380 },
-      { id: 111, name: '해안로 보왕칼국수 본점', address: '제주 서귀포시 표선면', phone: '', category: '칼국수', lat: 33.2480, lng: 126.3190 },
-      { id: 112, name: '이까슬소길', address: '제주 제주시 구좌읍', phone: '', category: '카페', lat: 33.5200, lng: 126.5850 },
-      { id: 113, name: '코로하 카카오팰밀리', address: '제주 제주시 구좌읍', phone: '', category: '카페', lat: 33.5100, lng: 126.6000 },
-      { id: 114, name: '더윤도리', address: '제주 제주시 서호로', phone: '', category: '카페', lat: 33.5050, lng: 126.5250 },
-      { id: 115, name: '남의15', address: '제주 제주시 조천읍', phone: '', category: '카페', lat: 33.4750, lng: 126.4900 },
-      { id: 116, name: '킹조배기러', address: '제주 제주시 용담2동', phone: '', category: '베이커리', lat: 33.5150, lng: 126.5200 },
-      { id: 117, name: '가시리 수목원', address: '제주 서귀포시 대정읍', phone: '', category: '관광지', lat: 33.2300, lng: 126.1900 },
-      { id: 118, name: '소천지', address: '제주 서귀포시 보목동', phone: '', category: '관광지', lat: 33.2400, lng: 126.3500 },
-    ];
+/* ───────── 상수 ───────── */
+const ALL_DATES = [
+  '2026-06-15','2026-06-16','2026-06-17',
+  '2026-06-18','2026-06-19','2026-06-20',
+];
+const FIXED_DATES = new Set(['2026-06-15','2026-06-20']);
 
-    const FIXED_EVENTS = {
-      '2026-06-15': [
-        { id: 'f1', time: '02:30~03:00', title: '🏠 안양 집 출발', desc: '완도항 09:20 배편 기준 역산' },
-        { id: 'f2', time: '04:30~05:00', title: '⛽ 안성휴게소 수소 충전', desc: '30분 (새벽 운영)' },
-        { id: 'f3', time: '07:40~07:50', title: '🚗 완도항 도착', desc: '차량 선적 시작' },
-        { id: 'f4', time: '09:20', title: '⛴️ 실버클라우드호 출항', desc: '완도→제주 (2시간 40분)' },
-        { id: 'f5', time: '12:00~12:15', title: '🏝️ 제주항 도착', desc: '차량 하선' },
-        { id: 'f6', time: '12:30~13:20', title: '🗺️ 붉은오름 이동', desc: '제주항→캠핑장' },
-        { id: 'f7', time: '13:30', title: '⛺ 캠핑장 입장', desc: '설영 시작' },
-      ],
-      '2026-06-20': [
-        { id: 'f8', time: '06:00', title: '🔔 철수 시작', desc: '짐 정리' },
-        { id: 'f9', time: '06:50~07:00', title: '🚗 제주항 도착', desc: '차량 선적' },
-        { id: 'f10', time: '08:20', title: '⛴️ 골드스텔라호 출항', desc: '제주→완도 (2시간 40분)' },
-        { id: 'f11', time: '11:00~11:30', title: '🏖️ 완도항 도착', desc: '차량 하선' },
-        { id: 'f12', time: '15:30~16:00', title: '⛽ 안성휴게소 수소 충전', desc: '30분' },
-        { id: 'f13', time: '17:00~17:30', title: '🏠 안양 집 도착', desc: '여행 완료!' },
-      ]
+const FIXED_EVENTS = {
+  '2026-06-15': [
+    { id:'f1', title:'🏠 안양 집 출발',       time:'02:30', placeName:'', address:'경기 안양시', memo:'완도항 09:20 배편 기준 역산 출발', naverMapUrl:'' },
+    { id:'f2', title:'⛽ 안성휴게소 수소 충전', time:'04:30', placeName:'안성휴게소', address:'경기 안성시', memo:'30분 충전, 새벽 운영', naverMapUrl:'' },
+    { id:'f3', title:'🚗 완도항 도착 & 선적',   time:'07:40', placeName:'완도항', address:'전남 완도군 완도읍', memo:'차량 선적 시작', naverMapUrl:'https://map.naver.com/v5/search/완도항' },
+    { id:'f4', title:'⛴️ 실버클라우드호 출항', time:'09:20', placeName:'완도항', address:'', memo:'완도→제주 (약 2시간 40분)', naverMapUrl:'' },
+    { id:'f5', title:'🏝️ 제주항 도착',          time:'12:00', placeName:'제주항', address:'제주 제주시', memo:'차량 하선', naverMapUrl:'' },
+    { id:'f6', title:'🗺️ 붉은오름 이동',         time:'12:30', placeName:'', address:'', memo:'제주항→캠핑장 약 50분', naverMapUrl:'' },
+    { id:'f7', title:'⛺ 캠핑장 입장 & 설영',   time:'13:30', placeName:'붉은오름자연휴양림', address:'제주 서귀포시 표선면', memo:'5박 6일 여행 시작!', naverMapUrl:'https://map.naver.com/v5/search/붉은오름자연휴양림' },
+  ],
+  '2026-06-20': [
+    { id:'f8',  title:'🔔 캠핑장 철수',           time:'06:00', placeName:'붉은오름자연휴양림', address:'', memo:'짐 정리 및 출발 준비', naverMapUrl:'' },
+    { id:'f9',  title:'🚗 제주항 도착 & 선적',    time:'06:50', placeName:'제주항', address:'제주 제주시', memo:'차량 선적', naverMapUrl:'' },
+    { id:'f10', title:'⛴️ 골드스텔라호 출항',    time:'08:20', placeName:'제주항', address:'', memo:'제주→완도 (약 2시간 40분)', naverMapUrl:'' },
+    { id:'f11', title:'🏖️ 완도항 도착',           time:'11:00', placeName:'완도항', address:'전남 완도군', memo:'차량 하선', naverMapUrl:'' },
+    { id:'f12', title:'⛽ 안성휴게소 수소 충전',  time:'15:30', placeName:'안성휴게소', address:'경기 안성시', memo:'30분 충전', naverMapUrl:'' },
+    { id:'f13', title:'🏠 안양 집 도착',           time:'17:00', placeName:'', address:'경기 안양시', memo:'여행 완료! 🎉', naverMapUrl:'' },
+  ],
+};
+
+/* ───────── 헬퍼 ───────── */
+function dateLabel(dateStr) {
+  const d = new Date(dateStr + 'T00:00');
+  return d.toLocaleDateString('ko-KR', { month:'short', day:'numeric', weekday:'short' });
+}
+function sortByTime(arr) {
+  return [...arr].sort((a,b) => (a.time||'').localeCompare(b.time||''));
+}
+function newId() { return 'e_' + Date.now() + '_' + Math.random().toString(36).slice(2,6); }
+function now()   { return new Date().toISOString(); }
+
+/* ───────── 기본 폼 상태 ───────── */
+const BLANK_FORM = {
+  title:'', time:'', placeName:'', address:'', memo:'', naverMapUrl:'',
+};
+
+/* ────────────────────────────────
+   메인 컴포넌트
+   ──────────────────────────────── */
+function App() {
+  /* ── 상태 ── */
+  const [selectedDate, setSelectedDate] = useState('2026-06-16');
+  const [selectedEventId, setSelectedEventId] = useState(null);
+  const [search, setSearch] = useState('');
+
+  const [userSchedule, setUserSchedule] = useState(() => {
+    try {
+      const s = localStorage.getItem('jejuSchedule_v3');
+      return s ? JSON.parse(s) : { '2026-06-16':[], '2026-06-17':[], '2026-06-18':[], '2026-06-19':[] };
+    } catch { return { '2026-06-16':[], '2026-06-17':[], '2026-06-18':[], '2026-06-19':[] }; }
+  });
+
+  /* 모달 관련 */
+  const [modal, setModal] = useState(null);
+  // modal = { type: 'add'|'edit'|'move', eventId?, date? }
+  const [form, setForm] = useState(BLANK_FORM);
+
+  /* ── 저장 ── */
+  useEffect(() => {
+    localStorage.setItem('jejuSchedule_v3', JSON.stringify(userSchedule));
+  }, [userSchedule]);
+
+  /* ── 현재 보이는 이벤트 목록 ── */
+  const currentEvents = (() => {
+    if (FIXED_DATES.has(selectedDate)) {
+      const fixed = FIXED_EVENTS[selectedDate] || [];
+      const q = search.toLowerCase();
+      if (!q) return fixed;
+      return fixed.filter(e =>
+        (e.title||'').toLowerCase().includes(q) ||
+        (e.placeName||'').toLowerCase().includes(q) ||
+        (e.address||'').toLowerCase().includes(q)
+      );
+    }
+    const events = sortByTime(userSchedule[selectedDate] || []);
+    const q = search.toLowerCase();
+    if (!q) return events;
+    return events.filter(e =>
+      (e.title||'').toLowerCase().includes(q) ||
+      (e.placeName||'').toLowerCase().includes(q) ||
+      (e.address||'').toLowerCase().includes(q)
+    );
+  })();
+
+  /* ── 선택된 이벤트 객체 ── */
+  const selectedEvent = (() => {
+    if (!selectedEventId) return null;
+    if (FIXED_DATES.has(selectedDate)) {
+      return (FIXED_EVENTS[selectedDate]||[]).find(e => e.id === selectedEventId) || null;
+    }
+    return (userSchedule[selectedDate]||[]).find(e => e.id === selectedEventId) || null;
+  })();
+
+  /* ────── CRUD ────── */
+  const openAdd = () => {
+    setForm(BLANK_FORM);
+    setModal({ type:'add' });
+  };
+
+  const openEdit = (event) => {
+    setForm({
+      title: event.title || '',
+      time: event.time || '',
+      placeName: event.placeName || '',
+      address: event.address || '',
+      memo: event.memo || '',
+      naverMapUrl: event.naverMapUrl || '',
+    });
+    setModal({ type:'edit', eventId: event.id });
+  };
+
+  const openMove = (event) => {
+    setModal({ type:'move', eventId: event.id });
+  };
+
+  const closeModal = () => {
+    setModal(null);
+    setForm(BLANK_FORM);
+  };
+
+  const handleFormChange = (field, val) => {
+    setForm(prev => ({ ...prev, [field]: val }));
+  };
+
+  /* 추가 */
+  const confirmAdd = () => {
+    if (!form.title.trim()) { alert('일정명을 입력해주세요'); return; }
+    const ev = {
+      id: newId(),
+      ...form,
+      date: selectedDate,
+      createdAt: now(),
+      updatedAt: now(),
     };
+    setUserSchedule(prev => ({
+      ...prev,
+      [selectedDate]: sortByTime([...(prev[selectedDate]||[]), ev]),
+    }));
+    setSelectedEventId(ev.id);
+    closeModal();
+  };
 
-    function JejuTripPlanner() {
-      const [activeTab, setActiveTab] = useState('schedule');
-      const [selectedDate, setSelectedDate] = useState('2026-06-16');
-      
-      const [userSchedule, setUserSchedule] = useState(() => {
-        const saved = localStorage.getItem('jejuUserSchedule');
-        return saved ? JSON.parse(saved) : { '2026-06-16': [], '2026-06-17': [], '2026-06-18': [], '2026-06-19': [] };
-      });
+  /* 수정 */
+  const confirmEdit = () => {
+    if (!form.title.trim()) { alert('일정명을 입력해주세요'); return; }
+    const eventId = modal.eventId;
+    setUserSchedule(prev => ({
+      ...prev,
+      [selectedDate]: sortByTime(
+        (prev[selectedDate]||[]).map(e =>
+          e.id === eventId ? { ...e, ...form, updatedAt: now() } : e
+        )
+      ),
+    }));
+    closeModal();
+  };
 
-      const [modalOpen, setModalOpen] = useState(false);
-      const [modalPlace, setModalPlace] = useState(null);
-      const [modalTime, setModalTime] = useState('');
+  /* 삭제 */
+  const deleteEvent = (event) => {
+    if (!window.confirm(`"${event.title}" 일정을 삭제할까요?`)) return;
+    setUserSchedule(prev => ({
+      ...prev,
+      [selectedDate]: (prev[selectedDate]||[]).filter(e => e.id !== event.id),
+    }));
+    if (selectedEventId === event.id) setSelectedEventId(null);
+  };
 
-      useEffect(() => {
-        localStorage.setItem('jejuUserSchedule', JSON.stringify(userSchedule));
-      }, [userSchedule]);
+  /* 날짜 이동 */
+  const moveToDate = (targetDate) => {
+    const eventId = modal.eventId;
+    const ev = (userSchedule[selectedDate]||[]).find(e => e.id === eventId);
+    if (!ev) { closeModal(); return; }
+    setUserSchedule(prev => ({
+      ...prev,
+      [selectedDate]: (prev[selectedDate]||[]).filter(e => e.id !== eventId),
+      [targetDate]: sortByTime([...(prev[targetDate]||[]), { ...ev, date: targetDate, updatedAt: now() }]),
+    }));
+    setSelectedEventId(null);
+    closeModal();
+  };
 
-      const handleAddToSchedule = (place) => {
-        setModalPlace(place);
-        setModalTime('');
-        setModalOpen(true);
-      };
+  /* ── 지도 (네이버맵 SDK) ── */
+  const mapRef = useRef(null);
+  const naverMap = useRef(null);
+  const markerRef = useRef(null);
 
-      const confirmAddSchedule = () => {
-        if (!modalTime) {
-          alert('시간을 입력해주세요');
-          return;
-        }
+  useEffect(() => {
+    if (!mapRef.current) return;
+    if (typeof naver === 'undefined') return;
+    if (naverMap.current) return;
+    naverMap.current = new naver.maps.Map(mapRef.current, {
+      center: new naver.maps.LatLng(33.375, 126.543),
+      zoom: 10,
+    });
+  }, []);
 
-        const newEvent = {
-          id: Date.now(),
-          ...modalPlace,
-          time: modalTime,
-        };
+  useEffect(() => {
+    if (!naverMap.current) return;
+    if (!selectedEvent || !selectedEvent.naverMapUrl) {
+      if (markerRef.current) { markerRef.current.setMap(null); markerRef.current = null; }
+      return;
+    }
+    /* 간단히 제주 중심 마커 (실제 좌표는 API 필요) */
+    if (markerRef.current) markerRef.current.setMap(null);
+    markerRef.current = new naver.maps.Marker({
+      position: new naver.maps.LatLng(33.375, 126.543),
+      map: naverMap.current,
+      title: selectedEvent.placeName || selectedEvent.title,
+    });
+  }, [selectedEvent]);
 
-        setUserSchedule({
-          ...userSchedule,
-          [selectedDate]: [...(userSchedule[selectedDate] || []), newEvent],
-        });
+  /* ── render ── */
+  return (
+    <div id="app">
 
-        setModalOpen(false);
-        setModalPlace(null);
-        setModalTime('');
-      };
+      {/* ══ 왼쪽 패널 ══ */}
+      <div className="left-panel">
 
-      const removeEvent = (date, eventId) => {
-        setUserSchedule({
-          ...userSchedule,
-          [date]: userSchedule[date].filter(e => e.id !== eventId),
-        });
-      };
+        {/* 헤더 */}
+        <div className="left-header">
+          <h1>📍 제주도 여행 플래너</h1>
+          <p>완도 왕복 · 6/15 ~ 6/20 · 5박 6일</p>
+        </div>
 
-      const allDates = ['2026-06-15', '2026-06-16', '2026-06-17', '2026-06-18', '2026-06-19', '2026-06-20'];
-      
-      const displayEvents = selectedDate === '2026-06-15' || selectedDate === '2026-06-20'
-        ? (FIXED_EVENTS[selectedDate] || [])
-        : (userSchedule[selectedDate] || []);
+        {/* 검색 */}
+        <div className="search-bar">
+          <input
+            type="text"
+            placeholder="🔍 일정 · 장소 · 주소 검색..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
 
-      return (
-        <div style={{display: 'flex', height: '100vh'}}>
-          {/* 왼쪽 사이드바 */}
-          <div style={{width: '384px'}} className="sidebar">
-            <div className="header">
-              <h1>📍 제주도 여행</h1>
-              <p>완도 왕복 여정 플래너</p>
-            </div>
+        {/* 날짜 선택 */}
+        <div className="date-nav">
+          {ALL_DATES.map(d => (
+            <button
+              key={d}
+              className={`date-chip${selectedDate===d?' active':''}${FIXED_DATES.has(d)?' fixed':''}`}
+              onClick={() => { setSelectedDate(d); setSelectedEventId(null); }}
+            >
+              {new Date(d+'T00:00').toLocaleDateString('ko-KR',{month:'short',day:'numeric'})}
+              {FIXED_DATES.has(d) && <div style={{fontSize:'9px'}}>고정</div>}
+            </button>
+          ))}
+        </div>
 
-            <div className="tabs">
-              <button
-                onClick={() => setActiveTab('schedule')}
-                style={{borderBottom: activeTab === 'schedule' ? '2px solid #2563eb' : 'none'}}
-                className={`tab ${activeTab === 'schedule' ? 'active' : ''}`}
-              >
-                📅 일정
-              </button>
-              <button
-                onClick={() => setActiveTab('reference')}
-                style={{borderBottom: activeTab === 'reference' ? '2px solid #2563eb' : 'none'}}
-                className={`tab ${activeTab === 'reference' ? 'active' : ''}`}
-              >
-                🗂️ 레퍼런스
-              </button>
-            </div>
-
-            <div className="content">
-              {activeTab === 'schedule' ? (
-                <>
-                  <div className="date-grid">
-                    {allDates.map((date) => {
-                      const dateObj = new Date(date);
-                      const isFixed = date === '2026-06-15' || date === '2026-06-20';
-                      return (
-                        <button
-                          key={date}
-                          onClick={() => setSelectedDate(date)}
-                          className={`date-btn ${selectedDate === date ? 'active' : ''} ${isFixed ? 'fixed' : ''}`}
-                        >
-                          {dateObj.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}
-                          {isFixed && <div style={{fontSize: '9px', marginTop: '2px'}}>고정</div>}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {displayEvents.length === 0 ? (
-                    <div className="empty-state">
-                      <p>계획된 일정이 없습니다</p>
-                      {['2026-06-16', '2026-06-17', '2026-06-18', '2026-06-19'].includes(selectedDate) && (
-                        <p style={{marginTop: '6px'}}>레퍼런스에서 장소를 추가해주세요</p>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="event-list">
-                      {displayEvents.map((event) => (
-                        <div key={event.id} className="event-item">
-                          <div className="event-time">{event.time}</div>
-                          <div className="event-title">{event.title || event.name}</div>
-                          {event.desc && <div className="event-desc">{event.desc}</div>}
-                          {event.address && <div className="event-address">{event.address}</div>}
-                          
-                          {!event.id.toString().startsWith('f') && (
-                            <div className="btn-delete" onClick={() => removeEvent(selectedDate, event.id)}>
-                              ✕ 삭제
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {['2026-06-16', '2026-06-17', '2026-06-18', '2026-06-19'].includes(selectedDate) && (
-                    <button
-                      onClick={() => setActiveTab('reference')}
-                      style={{marginTop: '16px'}}
-                      className="btn-action btn-primary"
-                    >
-                      ➕ 레퍼런스에서 추가
-                    </button>
-                  )}
-                </>
-              ) : (
-                <div>
-                  {REFERENCE_PLACES.map((place) => (
-                    <div key={place.id} className="place-item">
-                      <div className="place-name">{place.name}</div>
-                      <div className="place-category">{place.category}</div>
-                      <div className="place-address">{place.address}</div>
-                      {place.phone && <div className="place-phone">☎️ {place.phone}</div>}
-                      <button
-                        onClick={() => handleAddToSchedule(place)}
-                        className="btn-add"
-                      >
-                        ➕ {selectedDate.substring(5, 10)} 추가
-                      </button>
-                    </div>
-                  ))}
-                </div>
+        {/* 이벤트 리스트 */}
+        <div className="event-list">
+          {currentEvents.length === 0 ? (
+            <div className="empty-state">
+              <p>계획된 일정이 없습니다</p>
+              {!FIXED_DATES.has(selectedDate) && (
+                <p style={{fontSize:'12px',color:'#3b82f6'}}>아래 ➕ 버튼으로 추가하세요</p>
               )}
             </div>
-          </div>
+          ) : currentEvents.map(ev => {
+            const isFixed = typeof ev.id === 'string' && ev.id.startsWith('f');
+            return (
+              <div
+                key={ev.id}
+                className={`event-card${isFixed?' fixed':''}${selectedEventId===ev.id?' active':''}`}
+                onClick={() => setSelectedEventId(ev.id)}
+              >
+                {ev.time && <div className="card-time">🕐 {ev.time}</div>}
+                <div className="card-title">{ev.title}</div>
+                {ev.placeName && <div className="card-place">📌 {ev.placeName}</div>}
+                {ev.address  && <div className="card-place" style={{color:'#9ca3af'}}>📍 {ev.address}</div>}
+                {ev.memo     && <div className="card-memo">"{ev.memo}"</div>}
 
-          {/* 오른쪽 지도 */}
-          <div style={{flex: 1}} className="map"></div>
-
-          {/* 모달 */}
-          {modalOpen && (
-            <div className="modal">
-              <div className="modal-content">
-                <div className="modal-header">일정 추가</div>
-                
-                {modalPlace && (
-                  <>
-                    <div className="modal-place">
-                      <div className="modal-place-name">{modalPlace.name}</div>
-                      <div className="modal-place-addr">{modalPlace.address}</div>
-                      <div className="modal-place-cat">{modalPlace.category}</div>
-                    </div>
-
-                    <div className="form-group">
-                      <label className="form-label">시간 입력</label>
-                      <input
-                        type="time"
-                        value={modalTime}
-                        onChange={(e) => setModalTime(e.target.value)}
-                        className="form-input"
-                      />
-                    </div>
-
-                    <div className="modal-buttons">
-                      <button
-                        onClick={confirmAddSchedule}
-                        className="btn-modal btn-confirm"
-                      >
-                        ✓ 추가
-                      </button>
-                      <button
-                        onClick={() => {
-                          setModalOpen(false);
-                          setModalPlace(null);
-                          setModalTime('');
-                        }}
-                        className="btn-modal btn-cancel"
-                      >
-                        취소
-                      </button>
-                    </div>
-                  </>
+                {/* 액션 버튼 */}
+                {!isFixed && (
+                  <div className="card-actions" onClick={e => e.stopPropagation()}>
+                    <button className="card-btn edit"  onClick={() => openEdit(ev)}>✏️ 수정</button>
+                    <button className="card-btn move"  onClick={() => openMove(ev)}>📅 날짜변경</button>
+                    <button className="card-btn del"   onClick={() => deleteEvent(ev)}>🗑 삭제</button>
+                    {ev.naverMapUrl && (
+                      <button className="card-btn naver" onClick={() => window.open(ev.naverMapUrl,'_blank')}>🗺 지도</button>
+                    )}
+                  </div>
                 )}
               </div>
+            );
+          })}
+        </div>
+
+        {/* 추가 버튼 */}
+        {!FIXED_DATES.has(selectedDate) && (
+          <div className="add-btn-wrap">
+            <button className="add-btn" onClick={openAdd}>
+              ➕ 일정 추가 (네이버맵 링크 포함 가능)
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* ══ 오른쪽 패널 ══ */}
+      <div className="right-panel">
+
+        {/* 상세 정보 */}
+        {selectedEvent ? (
+          <div className="detail-panel">
+            <div className="detail-title">{selectedEvent.title}</div>
+            {selectedEvent.time     && <div className="detail-time">🕐 {selectedEvent.time}</div>}
+            {selectedEvent.placeName&& <div className="detail-address">📌 {selectedEvent.placeName}</div>}
+            {selectedEvent.address  && <div className="detail-address">📍 {selectedEvent.address}</div>}
+            {selectedEvent.memo     && <div className="detail-memo">"{selectedEvent.memo}"</div>}
+            <div className="detail-btns">
+              {selectedEvent.naverMapUrl && (
+                <button
+                  className="detail-btn primary"
+                  onClick={() => window.open(selectedEvent.naverMapUrl,'_blank')}
+                >
+                  🗺️ 네이버지도 열기
+                </button>
+              )}
+              {(() => {
+                const isFixed = typeof selectedEvent.id === 'string' && selectedEvent.id.startsWith('f');
+                return !isFixed && (
+                  <>
+                    <button className="detail-btn secondary" onClick={() => openEdit(selectedEvent)}>✏️ 수정</button>
+                    <button className="detail-btn secondary" onClick={() => openMove(selectedEvent)}>📅 날짜 변경</button>
+                    <button
+                      className="detail-btn secondary"
+                      style={{color:'#dc2626'}}
+                      onClick={() => deleteEvent(selectedEvent)}
+                    >🗑 삭제</button>
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+        ) : (
+          <div className="detail-placeholder">
+            ← 왼쪽 일정 카드를 클릭하면 상세 정보가 표시됩니다
+          </div>
+        )}
+
+        {/* 지도 영역 */}
+        <div className="map-area">
+          {typeof naver !== 'undefined' ? (
+            <div id="naver-map" ref={mapRef}></div>
+          ) : (
+            <div className="map-placeholder">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path strokeLinecap="round" strokeLinejoin="round"
+                  d="M9 6.75V15m6-6v8.25m.503 3.498l4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 00-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0z"/>
+              </svg>
+              <p>네이버 지도 로드 중...</p>
             </div>
           )}
         </div>
-      );
-    }
+      </div>
 
-    ReactDOM.render(<JejuTripPlanner />, document.getElementById('root'));
-  </script>
+      {/* ══ 모달: 추가 / 수정 ══ */}
+      {(modal?.type === 'add' || modal?.type === 'edit') && (
+        <div className="modal-backdrop" onClick={closeModal}>
+          <div className="modal-box" onClick={e => e.stopPropagation()}>
+            <div className="modal-title">
+              {modal.type === 'add' ? '➕ 일정 추가' : '✏️ 일정 수정'}
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">일정명 *</label>
+              <input className="form-input" placeholder="예: 저녁 식사, 성산일출봉 관람..."
+                value={form.title} onChange={e => handleFormChange('title', e.target.value)} />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">시간</label>
+              <input className="form-input" type="time"
+                value={form.time} onChange={e => handleFormChange('time', e.target.value)} />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">장소명</label>
+              <input className="form-input" placeholder="예: 대우정, 성산일출봉..."
+                value={form.placeName} onChange={e => handleFormChange('placeName', e.target.value)} />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">주소</label>
+              <input className="form-input" placeholder="예: 제주 서귀포시 표선면..."
+                value={form.address} onChange={e => handleFormChange('address', e.target.value)} />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">네이버맵 링크</label>
+              <input className="form-input"
+                placeholder="네이버맵 공유 → 링크복사 후 붙여넣기"
+                value={form.naverMapUrl} onChange={e => handleFormChange('naverMapUrl', e.target.value)} />
+              <div className="form-hint">
+                네이버지도 앱/웹 → 장소 선택 → 공유 → 링크 복사 → 여기 붙여넣기
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">메모</label>
+              <textarea className="form-textarea" placeholder="예약 필수, 웨이팅 있음, 현금만 가능..."
+                value={form.memo} onChange={e => handleFormChange('memo', e.target.value)} />
+            </div>
+
+            <div className="modal-btns">
+              <button className="modal-btn confirm"
+                onClick={modal.type === 'add' ? confirmAdd : confirmEdit}>
+                {modal.type === 'add' ? '추가' : '저장'}
+              </button>
+              <button className="modal-btn cancel" onClick={closeModal}>취소</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ 모달: 날짜 변경 ══ */}
+      {modal?.type === 'move' && (
+        <div className="modal-backdrop" onClick={closeModal}>
+          <div className="modal-box" onClick={e => e.stopPropagation()}>
+            <div className="modal-title">📅 날짜 변경</div>
+            <p style={{fontSize:'13px',color:'#6b7280',marginBottom:'4px'}}>이동할 날짜를 선택하세요</p>
+            <div className="date-move-grid">
+              {['2026-06-16','2026-06-17','2026-06-18','2026-06-19'].map(d => (
+                <button
+                  key={d}
+                  className={`date-move-btn${d === selectedDate ? ' current' : ''}`}
+                  onClick={() => d !== selectedDate && moveToDate(d)}
+                >
+                  {dateLabel(d)}
+                  {d === selectedDate && <div style={{fontSize:'10px',color:'#9ca3af'}}>현재</div>}
+                </button>
+              ))}
+            </div>
+            <div className="modal-btns">
+              <button className="modal-btn cancel" style={{flex:'none',padding:'11px 24px'}}
+                onClick={closeModal}>닫기</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}
+
+ReactDOM.render(<App />, document.getElementById('root'));
+</script>
+
+<!-- 네이버 지도 SDK 추가 -->
+<script type="text/javascript"
+  src="https://openapi.map.naver.com/openapi/v3/maps.js?ncpClientId=dy1z9it95e"
+  onerror="console.warn('네이버 지도 API 로드 실패')">
+</script>
 </body>
 </html>
