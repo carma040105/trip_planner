@@ -7,185 +7,308 @@
   <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <script type="text/javascript" src="https://openapi.map.naver.com/openapi/v3/maps.js?ncpClientId=dy1z9it95e"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f3f4f6;
+      color: #1f2937;
+    }
     
     .container { display: flex; height: 100vh; }
     
     .sidebar {
-      width: 380px;
+      width: 384px;
       background: white;
-      overflow-y: auto;
-      box-shadow: 2px 0 8px rgba(0,0,0,0.1);
       display: flex;
       flex-direction: column;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      overflow: hidden;
     }
     
     .header {
-      padding: 20px;
-      border-bottom: 1px solid #e0e0e0;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #2563eb, #9333ea);
       color: white;
+      padding: 24px;
     }
     
-    .header h1 { font-size: 20px; margin-bottom: 10px; }
-    .header p { font-size: 12px; opacity: 0.9; }
+    .header h1 { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+    .header p { font-size: 13px; opacity: 0.9; }
     
     .tabs {
       display: flex;
-      border-bottom: 1px solid #e0e0e0;
-      background: white;
-      overflow-x: auto;
+      border-bottom: 1px solid #e5e7eb;
+      background: #f9fafb;
     }
     
     .tab {
       flex: 1;
-      padding: 12px;
+      padding: 12px 16px;
       cursor: pointer;
       border-bottom: 2px solid transparent;
       text-align: center;
-      font-size: 12px;
-      font-weight: 500;
-      transition: all 0.2s;
-      white-space: nowrap;
-    }
-    
-    .tab:hover { background: #f5f5f5; }
-    .tab.active { border-bottom-color: #667eea; color: #667eea; }
-    
-    .content-area { flex: 1; overflow-y: auto; padding: 16px; }
-    
-    .btn {
-      padding: 10px 14px;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 14px;
-      transition: all 0.2s;
-      font-weight: 500;
-      width: 100%;
-    }
-    
-    .btn-primary {
-      background: #667eea;
-      color: white;
-      margin-bottom: 12px;
-    }
-    
-    .btn-primary:hover { background: #5568d3; }
-    
-    .schedule-block {
-      background: #f0f8ff;
-      border-left: 3px solid #667eea;
-      padding: 12px;
-      margin-bottom: 12px;
-      border-radius: 4px;
-      font-size: 12px;
-    }
-    
-    .schedule-time {
+      font-size: 13px;
       font-weight: 600;
-      color: #667eea;
-      margin-bottom: 4px;
+      color: #6b7280;
+      transition: all 0.2s;
     }
     
-    .schedule-event {
-      color: #333;
-      line-height: 1.5;
-      margin-bottom: 6px;
+    .tab:hover { background: #f3f4f6; }
+    .tab.active { 
+      background: white;
+      color: #2563eb;
+      border-bottom-color: #2563eb;
     }
     
-    .date-filter {
-      display: flex;
+    .content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+    }
+    
+    .date-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
       gap: 8px;
-      flex-wrap: wrap;
-      margin-bottom: 12px;
+      margin-bottom: 16px;
     }
     
     .date-btn {
-      padding: 6px 12px;
-      border: 1px solid #ddd;
+      padding: 10px 8px;
+      border: 1px solid #d1d5db;
       background: white;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 12px;
-      transition: all 0.2s;
-    }
-    
-    .date-btn:hover { border-color: #667eea; }
-    .date-btn.active { background: #667eea; color: white; border-color: #667eea; }
-    
-    .place-item {
-      padding: 12px;
-      background: white;
-      border: 1px solid #e0e0e0;
       border-radius: 6px;
-      margin-bottom: 10px;
-      cursor: move;
-      transition: all 0.2s;
-    }
-    
-    .place-item:hover { background: #f9f9f9; border-color: #667eea; }
-    
-    .place-name { font-weight: 500; font-size: 14px; margin-bottom: 4px; }
-    .place-category { font-size: 11px; background: #f0f0f0; color: #666; padding: 2px 6px; border-radius: 3px; display: inline-block; margin-bottom: 4px; }
-    .place-address { font-size: 12px; color: #666; margin-bottom: 4px; }
-    .place-phone { font-size: 11px; color: #999; }
-    
-    .place-actions {
-      display: flex;
-      gap: 6px;
-      margin-top: 10px;
-    }
-    
-    .btn-small {
-      flex: 1;
-      padding: 6px 8px;
+      cursor: pointer;
       font-size: 11px;
-      background: #f0f0f0;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
+      font-weight: 600;
       transition: all 0.2s;
+      text-align: center;
     }
     
-    .btn-small:hover { background: #ddd; }
-    .btn-small.nav { background: #e8f5e9; color: #2e7d32; }
-    .btn-small.nav:hover { background: #c8e6c9; }
-    .btn-small.danger { background: #ffebee; color: #c62828; }
-    .btn-small.danger:hover { background: #ffcdd2; }
+    .date-btn:hover { border-color: #2563eb; }
+    .date-btn.active { 
+      background: #2563eb;
+      color: white;
+      border-color: #2563eb;
+    }
     
-    .scheduled-item {
+    .date-btn.fixed {
+      border: 2px solid #fbbf24;
+    }
+    
+    .event-list { display: flex; flex-direction: column; gap: 10px; }
+    
+    .event-item {
+      background: #dbeafe;
+      border-left: 4px solid #2563eb;
       padding: 12px;
-      background: white;
-      border: 1px solid #e0e0e0;
-      border-radius: 6px;
-      margin-bottom: 10px;
-      position: relative;
+      border-radius: 4px;
     }
     
-    .place-name { font-weight: 500; font-size: 14px; margin-bottom: 4px; }
-    .place-date { font-size: 12px; color: #667eea; font-weight: 500; margin-bottom: 4px; }
-    .place-category { font-size: 11px; background: #f0f0f0; color: #666; padding: 2px 6px; border-radius: 3px; display: inline-block; margin-bottom: 4px; }
-    .place-address { font-size: 12px; color: #666; margin-bottom: 4px; }
-    .place-phone { font-size: 11px; color: #999; }
+    .event-time {
+      font-weight: 700;
+      color: #1e40af;
+      font-size: 12px;
+    }
+    
+    .event-title {
+      font-weight: 600;
+      color: #111827;
+      font-size: 13px;
+      margin-top: 4px;
+    }
+    
+    .event-desc {
+      color: #4b5563;
+      font-size: 12px;
+      margin-top: 4px;
+    }
+    
+    .event-address {
+      color: #6b7280;
+      font-size: 11px;
+      margin-top: 4px;
+    }
+    
+    .btn-delete {
+      color: #dc2626;
+      font-size: 11px;
+      margin-top: 6px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    
+    .btn-delete:hover { text-decoration: underline; }
     
     .empty-state {
-      padding: 20px;
       text-align: center;
-      color: #999;
+      color: #9ca3af;
+      padding: 32px 16px;
       font-size: 12px;
     }
     
-    .map-wrapper {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
+    .place-item {
+      background: #f3f4f6;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      padding: 12px;
+      margin-bottom: 12px;
+      transition: all 0.2s;
     }
     
-    #map { flex: 1; width: 100%; }
+    .place-item:hover { background: #f0f1f3; }
+    
+    .place-name { font-weight: 600; font-size: 13px; color: #111827; }
+    .place-category { 
+      color: #2563eb;
+      font-size: 11px;
+      font-weight: 600;
+      margin-top: 6px;
+    }
+    
+    .place-address {
+      color: #6b7280;
+      font-size: 11px;
+      margin-top: 4px;
+    }
+    
+    .place-phone {
+      color: #9ca3af;
+      font-size: 10px;
+      margin-top: 4px;
+    }
+    
+    .btn-add {
+      width: 100%;
+      padding: 8px;
+      background: #22c55e;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 8px;
+      transition: all 0.2s;
+    }
+    
+    .btn-add:hover { background: #16a34a; }
+    
+    .btn-action {
+      width: 100%;
+      padding: 10px;
+      border: none;
+      border-radius: 4px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 12px;
+      transition: all 0.2s;
+    }
+    
+    .btn-primary {
+      background: #2563eb;
+      color: white;
+    }
+    
+    .btn-primary:hover { background: #1d4ed8; }
+    
+    .map { flex: 1; background: #d1d5db; }
+    
+    .modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+    }
+    
+    .modal-content {
+      background: white;
+      border-radius: 8px;
+      padding: 24px;
+      max-width: 400px;
+      width: 90%;
+      box-shadow: 0 20px 25px rgba(0, 0, 0, 0.15);
+    }
+    
+    .modal-header { font-size: 18px; font-weight: 700; margin-bottom: 16px; }
+    
+    .modal-place {
+      background: #dbeafe;
+      border: 1px solid #93c5fd;
+      border-radius: 6px;
+      padding: 12px;
+      margin-bottom: 16px;
+    }
+    
+    .modal-place-name { font-weight: 600; color: #1f2937; }
+    .modal-place-addr { font-size: 12px; color: #4b5563; margin-top: 4px; }
+    .modal-place-cat { 
+      font-size: 11px;
+      color: #2563eb;
+      font-weight: 600;
+      margin-top: 8px;
+    }
+    
+    .form-group {
+      margin-bottom: 16px;
+    }
+    
+    .form-label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: #374151;
+      margin-bottom: 6px;
+    }
+    
+    .form-input {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+      font-size: 13px;
+      font-family: inherit;
+    }
+    
+    .form-input:focus {
+      outline: none;
+      border-color: #2563eb;
+      box-shadow: 0 0 0 3px #dbeafe;
+    }
+    
+    .modal-buttons {
+      display: flex;
+      gap: 8px;
+    }
+    
+    .btn-modal {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      border-radius: 4px;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.2s;
+    }
+    
+    .btn-confirm {
+      background: #2563eb;
+      color: white;
+    }
+    
+    .btn-confirm:hover { background: #1d4ed8; }
+    
+    .btn-cancel {
+      background: #d1d5db;
+      color: #374151;
+    }
+    
+    .btn-cancel:hover { background: #9ca3af; }
   </style>
 </head>
 <body>
@@ -195,230 +318,257 @@
     const { useState, useEffect, useRef } = React;
 
     const REFERENCE_PLACES = [
-      { id: 101, name: '성신밥곡', address: '제주 제주시 노형로', phone: '', category: '음식점', lat: 33.4980, lng: 126.5100 },
-      { id: 102, name: '우금', address: '제주 제주시 애월읍', phone: '', category: '한식', lat: 33.4650, lng: 126.3080 },
-      { id: 103, name: '이까슬소길', address: '제주 제주시 구좌읍', phone: '', category: '카페', lat: 33.5200, lng: 126.5850 },
-      { id: 104, name: '코로하 카카오팰밀리', address: '제주 제주시 구좌읍', phone: '', category: '카페', lat: 33.5100, lng: 126.6000 },
-      { id: 105, name: '광어다 표선 본점', address: '제주 서귀포시 표선면 표선로 181', phone: '064-784-5555', category: '해물/생선', lat: 33.2500, lng: 126.3210 },
-      { id: 106, name: '더윤도리', address: '제주 제주시 서호로', phone: '', category: '카페', lat: 33.5050, lng: 126.5250 },
-      { id: 107, name: '문게여럿', address: '제주 제주시 동문로', phone: '', category: '한식', lat: 33.5030, lng: 126.5280 },
-      { id: 108, name: '남의15', address: '제주 제주시 조천읍', phone: '', category: '카페', lat: 33.4750, lng: 126.4900 },
-      { id: 109, name: '반네식당', address: '제주 제주시 연동', phone: '', category: '한식', lat: 33.5090, lng: 126.5210 },
-      { id: 110, name: '삼달리 벨녀른정원', address: '제주 제주시 삼도이동', phone: '', category: '해물요리', lat: 33.5120, lng: 126.5290 },
-      { id: 111, name: '물질식육식당', address: '제주 제주시 애월읍', phone: '', category: '한식', lat: 33.4700, lng: 126.3150 },
-      { id: 112, name: '둥막골 삶화정', address: '제주 제주시 조천읍', phone: '', category: '한식', lat: 33.4820, lng: 126.5380 },
-      { id: 113, name: '해안로 보왕칼국수 본점', address: '제주 서귀포시 표선면', phone: '', category: '칼국수', lat: 33.2480, lng: 126.3190 },
-      { id: 114, name: '가시리 수목원', address: '제주 서귀포시 대정읍 가시리', phone: '', category: '자연명소', lat: 33.2300, lng: 126.1900 },
-      { id: 115, name: '소천지', address: '제주 서귀포시 보목동', phone: '', category: '자연명소', lat: 33.2400, lng: 126.3500 },
+      { id: 101, name: '대우정', address: '제주 제주시 동문로 14길 20', phone: '064-753-4567', category: '전복돌솥밥', lat: 33.5062, lng: 126.5268 },
+      { id: 102, name: '문게야', address: '제주 서귀포시 표선면 표선로 476-1', phone: '064-787-8900', category: '문어요리', lat: 33.2480, lng: 126.3190 },
+      { id: 103, name: '성신밥곡', address: '제주 제주시 노형로', phone: '', category: '밥과 반찬', lat: 33.4980, lng: 126.5100 },
+      { id: 104, name: '우금', address: '제주 제주시 애월읍', phone: '', category: '한식', lat: 33.4650, lng: 126.3080 },
+      { id: 105, name: '광어다 표선 본점', address: '제주 서귀포시 표선면 표선로 181', phone: '064-784-5555', category: '생선회', lat: 33.2500, lng: 126.3210 },
+      { id: 106, name: '문게여럿', address: '제주 제주시 동문로', phone: '', category: '한식', lat: 33.5030, lng: 126.5280 },
+      { id: 107, name: '반네식당', address: '제주 제주시 연동', phone: '', category: '한식', lat: 33.5090, lng: 126.5210 },
+      { id: 108, name: '삼달리 벨녀른정원', address: '제주 제주시 삼도이동', phone: '', category: '해물요리', lat: 33.5120, lng: 126.5290 },
+      { id: 109, name: '물질식육식당', address: '제주 제주시 애월읍', phone: '', category: '돼지고기', lat: 33.4700, lng: 126.3150 },
+      { id: 110, name: '둥막골 삶화정', address: '제주 제주시 조천읍', phone: '', category: '한식', lat: 33.4820, lng: 126.5380 },
+      { id: 111, name: '해안로 보왕칼국수 본점', address: '제주 서귀포시 표선면', phone: '', category: '칼국수', lat: 33.2480, lng: 126.3190 },
+      { id: 112, name: '이까슬소길', address: '제주 제주시 구좌읍', phone: '', category: '카페', lat: 33.5200, lng: 126.5850 },
+      { id: 113, name: '코로하 카카오팰밀리', address: '제주 제주시 구좌읍', phone: '', category: '카페', lat: 33.5100, lng: 126.6000 },
+      { id: 114, name: '더윤도리', address: '제주 제주시 서호로', phone: '', category: '카페', lat: 33.5050, lng: 126.5250 },
+      { id: 115, name: '남의15', address: '제주 제주시 조천읍', phone: '', category: '카페', lat: 33.4750, lng: 126.4900 },
       { id: 116, name: '킹조배기러', address: '제주 제주시 용담2동', phone: '', category: '베이커리', lat: 33.5150, lng: 126.5200 },
-      { id: 117, name: '대우정', address: '제주 제주시 동문로 14길 20', phone: '064-753-4567', category: '음식점', lat: 33.5062, lng: 126.5268 },
-      { id: 118, name: '문게야', address: '제주 서귀포시 표선면 표선로 476-1', phone: '064-787-8900', category: '음식점', lat: 33.2480, lng: 126.3190 },
+      { id: 117, name: '가시리 수목원', address: '제주 서귀포시 대정읍', phone: '', category: '관광지', lat: 33.2300, lng: 126.1900 },
+      { id: 118, name: '소천지', address: '제주 서귀포시 보목동', phone: '', category: '관광지', lat: 33.2400, lng: 126.3500 },
     ];
 
-    const SCHEDULED_PLACES = [
-      { id: 1, name: '안양 출발', address: '경기 안양시', category: '출발', lat: 37.3833, lng: 126.9533, date: '2026-06-15', time: '03:20' },
-      { id: 2, name: '완도항 도착', address: '전남 완도군', category: '선적', lat: 34.3095, lng: 126.7269, date: '2026-06-15', time: '07:40~07:50' },
-      { id: 3, name: '실버클라우드호 출항 (완도→제주)', address: '완도항', category: '배편', lat: 34.3095, lng: 126.7269, date: '2026-06-15', time: '09:20' },
-      { id: 4, name: '제주항 도착', address: '제주 제주시', category: '항구', lat: 33.5090, lng: 126.5168, date: '2026-06-15', time: '12:00~12:15' },
-      { id: 5, name: '붉은오름자연휴양림 입장', address: '제주 서귀포시 표선면', category: '숙소', lat: 33.3500, lng: 126.4500, date: '2026-06-15', time: '13:30' },
-      
-      { id: 6, name: '붉은오름자연휴양림 철수', address: '제주 서귀포시 표선면', category: '출발', lat: 33.3500, lng: 126.4500, date: '2026-06-20', time: '06:00' },
-      { id: 7, name: '제주항 도착 (선적)', address: '제주 제주시', category: '선적', lat: 33.5090, lng: 126.5168, date: '2026-06-20', time: '07:00~07:10' },
-      { id: 8, name: '골드스텔라호 출항 (제주→완도)', address: '제주항', category: '배편', lat: 33.5090, lng: 126.5168, date: '2026-06-20', time: '08:40' },
-      { id: 9, name: '완도항 도착', address: '전남 완도군', category: '항구', lat: 34.3095, lng: 126.7269, date: '2026-06-20', time: '11:20~11:30' },
-      { id: 10, name: '서울 복귀', address: '경기 안양시', category: '도착', lat: 37.3833, lng: 126.9533, date: '2026-06-20', time: '~15:20' },
-    ];
+    const FIXED_EVENTS = {
+      '2026-06-15': [
+        { id: 'f1', time: '02:30~03:00', title: '🏠 안양 집 출발', desc: '완도항 09:20 배편 기준 역산' },
+        { id: 'f2', time: '04:30~05:00', title: '⛽ 안성휴게소 수소 충전', desc: '30분 (새벽 운영)' },
+        { id: 'f3', time: '07:40~07:50', title: '🚗 완도항 도착', desc: '차량 선적 시작' },
+        { id: 'f4', time: '09:20', title: '⛴️ 실버클라우드호 출항', desc: '완도→제주 (2시간 40분)' },
+        { id: 'f5', time: '12:00~12:15', title: '🏝️ 제주항 도착', desc: '차량 하선' },
+        { id: 'f6', time: '12:30~13:20', title: '🗺️ 붉은오름 이동', desc: '제주항→캠핑장' },
+        { id: 'f7', time: '13:30', title: '⛺ 캠핑장 입장', desc: '설영 시작' },
+      ],
+      '2026-06-20': [
+        { id: 'f8', time: '06:00', title: '🔔 철수 시작', desc: '짐 정리' },
+        { id: 'f9', time: '06:50~07:00', title: '🚗 제주항 도착', desc: '차량 선적' },
+        { id: 'f10', time: '08:20', title: '⛴️ 골드스텔라호 출항', desc: '제주→완도 (2시간 40분)' },
+        { id: 'f11', time: '11:00~11:30', title: '🏖️ 완도항 도착', desc: '차량 하선' },
+        { id: 'f12', time: '15:30~16:00', title: '⛽ 안성휴게소 수소 충전', desc: '30분' },
+        { id: 'f13', time: '17:00~17:30', title: '🏠 안양 집 도착', desc: '여행 완료!' },
+      ]
+    };
 
     function JejuTripPlanner() {
-      const mapRef = useRef(null);
-      const [scheduledPlaces, setScheduledPlaces] = useState(() => {
-        const saved = localStorage.getItem('jejuScheduled');
-        return saved ? JSON.parse(saved) : SCHEDULED_PLACES;
-      });
-      
-      const [referencePlaces] = useState(REFERENCE_PLACES);
       const [activeTab, setActiveTab] = useState('schedule');
-      const [selectedDate, setSelectedDate] = useState('2026-06-15');
-      const [dates, setDates] = useState([]);
+      const [selectedDate, setSelectedDate] = useState('2026-06-16');
       
-      const map = useRef(null);
-      const markersRef = useRef({});
+      const [userSchedule, setUserSchedule] = useState(() => {
+        const saved = localStorage.getItem('jejuUserSchedule');
+        return saved ? JSON.parse(saved) : { '2026-06-16': [], '2026-06-17': [], '2026-06-18': [], '2026-06-19': [] };
+      });
+
+      const [modalOpen, setModalOpen] = useState(false);
+      const [modalPlace, setModalPlace] = useState(null);
+      const [modalTime, setModalTime] = useState('');
 
       useEffect(() => {
-        updateDates();
-        initMap();
-      }, []);
+        localStorage.setItem('jejuUserSchedule', JSON.stringify(userSchedule));
+      }, [userSchedule]);
 
-      useEffect(() => {
-        saveScheduled(scheduledPlaces);
-        updateMapMarkers();
-      }, [scheduledPlaces, selectedDate]);
-
-      const initMap = () => {
-        if (!mapRef.current) return;
-        map.current = new naver.maps.Map(mapRef.current, {
-          center: new naver.maps.LatLng(33.3750, 126.5430),
-          zoom: 10,
-        });
+      const handleAddToSchedule = (place) => {
+        setModalPlace(place);
+        setModalTime('');
+        setModalOpen(true);
       };
 
-      const updateDates = () => {
-        const allDates = [...new Set([...scheduledPlaces, ...referencePlaces.map(p => ({date: ''}))].map(p => p.date).filter(Boolean))].sort();
-        setDates(allDates);
-      };
-
-      const saveScheduled = (places) => {
-        localStorage.setItem('jejuScheduled', JSON.stringify(places));
-      };
-
-      const updateMapMarkers = () => {
-        Object.values(markersRef.current).forEach(m => m.setMap(null));
-        markersRef.current = {};
-
-        const filteredPlaces = selectedDate 
-          ? scheduledPlaces.filter(p => p.date === selectedDate) 
-          : scheduledPlaces;
-
-        filteredPlaces.forEach((place, idx) => {
-          const marker = new naver.maps.Marker({
-            position: new naver.maps.LatLng(place.lat, place.lng),
-            map: map.current,
-            title: place.name,
-          });
-
-          naver.maps.Event.addListener(marker, 'click', () => {
-            alert(`${place.name}\n${place.address}`);
-          });
-
-          markersRef.current[idx] = marker;
-        });
-
-        if (filteredPlaces.length > 0 && map.current) {
-          const bounds = new naver.maps.LatLngBounds();
-          filteredPlaces.forEach(p => {
-            bounds.extend(new naver.maps.LatLng(p.lat, p.lng));
-          });
-          map.current.fitBounds(bounds);
+      const confirmAddSchedule = () => {
+        if (!modalTime) {
+          alert('시간을 입력해주세요');
+          return;
         }
+
+        const newEvent = {
+          id: Date.now(),
+          ...modalPlace,
+          time: modalTime,
+        };
+
+        setUserSchedule({
+          ...userSchedule,
+          [selectedDate]: [...(userSchedule[selectedDate] || []), newEvent],
+        });
+
+        setModalOpen(false);
+        setModalPlace(null);
+        setModalTime('');
       };
 
-      const deleteScheduled = (id) => {
-        setScheduledPlaces(scheduledPlaces.filter(p => p.id !== id));
+      const removeEvent = (date, eventId) => {
+        setUserSchedule({
+          ...userSchedule,
+          [date]: userSchedule[date].filter(e => e.id !== eventId),
+        });
       };
 
-      const openNavigation = (name) => {
-        window.open(`https://map.naver.com/v5/search/${encodeURIComponent(name)}`, '_blank');
-      };
-
-      const filteredScheduled = selectedDate
-        ? scheduledPlaces.filter(p => p.date === selectedDate)
-        : scheduledPlaces;
+      const allDates = ['2026-06-15', '2026-06-16', '2026-06-17', '2026-06-18', '2026-06-19', '2026-06-20'];
+      
+      const displayEvents = selectedDate === '2026-06-15' || selectedDate === '2026-06-20'
+        ? (FIXED_EVENTS[selectedDate] || [])
+        : (userSchedule[selectedDate] || []);
 
       return (
-        <div className="container">
-          <div className="sidebar">
+        <div style={{display: 'flex', height: '100vh'}}>
+          {/* 왼쪽 사이드바 */}
+          <div style={{width: '384px'}} className="sidebar">
             <div className="header">
               <h1>📍 제주도 여행</h1>
-              <p>{scheduledPlaces.length}개 일정 • {referencePlaces.length}개 레퍼런스</p>
+              <p>완도 왕복 여정 플래너</p>
             </div>
 
             <div className="tabs">
-              <div
-                className={`tab ${activeTab === 'schedule' ? 'active' : ''}`}
+              <button
                 onClick={() => setActiveTab('schedule')}
+                style={{borderBottom: activeTab === 'schedule' ? '2px solid #2563eb' : 'none'}}
+                className={`tab ${activeTab === 'schedule' ? 'active' : ''}`}
               >
                 📅 일정
-              </div>
-              <div
-                className={`tab ${activeTab === 'reference' ? 'active' : ''}`}
+              </button>
+              <button
                 onClick={() => setActiveTab('reference')}
+                style={{borderBottom: activeTab === 'reference' ? '2px solid #2563eb' : 'none'}}
+                className={`tab ${activeTab === 'reference' ? 'active' : ''}`}
               >
-                📍 레퍼런스
-              </div>
+                🗂️ 레퍼런스
+              </button>
             </div>
 
-            <div className="content-area">
+            <div className="content">
               {activeTab === 'schedule' ? (
                 <>
-                  {dates.length > 0 && (
-                    <div className="date-filter">
-                      {dates.map((date) => (
+                  <div className="date-grid">
+                    {allDates.map((date) => {
+                      const dateObj = new Date(date);
+                      const isFixed = date === '2026-06-15' || date === '2026-06-20';
+                      return (
                         <button
                           key={date}
-                          className={`date-btn ${selectedDate === date ? 'active' : ''}`}
                           onClick={() => setSelectedDate(date)}
+                          className={`date-btn ${selectedDate === date ? 'active' : ''} ${isFixed ? 'fixed' : ''}`}
                         >
-                          {new Date(date + 'T00:00').toLocaleDateString('ko-KR', {
-                            month: 'short',
-                            day: 'numeric',
-                          })}
+                          {dateObj.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}
+                          {isFixed && <div style={{fontSize: '9px', marginTop: '2px'}}>고정</div>}
                         </button>
-                      ))}
-                    </div>
-                  )}
+                      );
+                    })}
+                  </div>
 
-                  {filteredScheduled.length > 0 ? (
-                    <div>
-                      {filteredScheduled.map((place) => (
-                        <div key={place.id} className="scheduled-item">
-                          <div className="place-name">{place.name}</div>
-                          <div className="place-date">📅 {place.date} • 🕐 {place.time}</div>
-                          <div className="place-category">{place.category}</div>
-                          <div className="place-address">{place.address}</div>
-                          <div className="place-actions">
-                            <button
-                              className="btn-small nav"
-                              onClick={() => openNavigation(place.name)}
-                            >
-                              🗺️ 지도
-                            </button>
-                            <button
-                              className="btn-small danger"
-                              onClick={() => deleteScheduled(place.id)}
-                            >
-                              🗑️ 삭제
-                            </button>
-                          </div>
+                  {displayEvents.length === 0 ? (
+                    <div className="empty-state">
+                      <p>계획된 일정이 없습니다</p>
+                      {['2026-06-16', '2026-06-17', '2026-06-18', '2026-06-19'].includes(selectedDate) && (
+                        <p style={{marginTop: '6px'}}>레퍼런스에서 장소를 추가해주세요</p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="event-list">
+                      {displayEvents.map((event) => (
+                        <div key={event.id} className="event-item">
+                          <div className="event-time">{event.time}</div>
+                          <div className="event-title">{event.title || event.name}</div>
+                          {event.desc && <div className="event-desc">{event.desc}</div>}
+                          {event.address && <div className="event-address">{event.address}</div>}
+                          
+                          {!event.id.toString().startsWith('f') && (
+                            <div className="btn-delete" onClick={() => removeEvent(selectedDate, event.id)}>
+                              ✕ 삭제
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
-                  ) : (
-                    <div className="empty-state">
-                      {selectedDate
-                        ? `${selectedDate}에 계획된 일정이 없습니다`
-                        : '계획된 일정이 없습니다'}
-                    </div>
+                  )}
+
+                  {['2026-06-16', '2026-06-17', '2026-06-18', '2026-06-19'].includes(selectedDate) && (
+                    <button
+                      onClick={() => setActiveTab('reference')}
+                      style={{marginTop: '16px'}}
+                      className="btn-action btn-primary"
+                    >
+                      ➕ 레퍼런스에서 추가
+                    </button>
                   )}
                 </>
               ) : (
-                <>
-                  <div style={{fontSize: '12px', color: '#999', marginBottom: '12px'}}>
-                    💡 식당, 카페, 관광지를 클릭하면 자세한 정보를 볼 수 있습니다
-                  </div>
-                  {referencePlaces.map((place) => (
+                <div>
+                  {REFERENCE_PLACES.map((place) => (
                     <div key={place.id} className="place-item">
                       <div className="place-name">{place.name}</div>
                       <div className="place-category">{place.category}</div>
                       <div className="place-address">{place.address}</div>
                       {place.phone && <div className="place-phone">☎️ {place.phone}</div>}
-                      <div className="place-actions">
-                        <button
-                          className="btn-small nav"
-                          onClick={() => openNavigation(place.name)}
-                        >
-                          🗺️ 네비
-                        </button>
-                      </div>
+                      <button
+                        onClick={() => handleAddToSchedule(place)}
+                        className="btn-add"
+                      >
+                        ➕ {selectedDate.substring(5, 10)} 추가
+                      </button>
                     </div>
                   ))}
-                </>
+                </div>
               )}
             </div>
           </div>
 
-          <div className="map-wrapper">
-            <div ref={mapRef} id="map"></div>
-          </div>
+          {/* 오른쪽 지도 */}
+          <div style={{flex: 1}} className="map"></div>
+
+          {/* 모달 */}
+          {modalOpen && (
+            <div className="modal">
+              <div className="modal-content">
+                <div className="modal-header">일정 추가</div>
+                
+                {modalPlace && (
+                  <>
+                    <div className="modal-place">
+                      <div className="modal-place-name">{modalPlace.name}</div>
+                      <div className="modal-place-addr">{modalPlace.address}</div>
+                      <div className="modal-place-cat">{modalPlace.category}</div>
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label">시간 입력</label>
+                      <input
+                        type="time"
+                        value={modalTime}
+                        onChange={(e) => setModalTime(e.target.value)}
+                        className="form-input"
+                      />
+                    </div>
+
+                    <div className="modal-buttons">
+                      <button
+                        onClick={confirmAddSchedule}
+                        className="btn-modal btn-confirm"
+                      >
+                        ✓ 추가
+                      </button>
+                      <button
+                        onClick={() => {
+                          setModalOpen(false);
+                          setModalPlace(null);
+                          setModalTime('');
+                        }}
+                        className="btn-modal btn-cancel"
+                      >
+                        취소
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       );
     }
