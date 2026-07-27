@@ -1,0 +1,168 @@
+import { useState } from 'react';
+import { useTravel } from '../store/TravelContext.jsx';
+import { GRADIENTS } from '../data/defaultData';
+import NewTripSheet from '../components/NewTripSheet.jsx';
+
+export default function Home() {
+  const { data, updateData, openTrip } = useTravel();
+  const [openMenuTripId, setOpenMenuTripId] = useState(null);
+  const [showNewTrip, setShowNewTrip] = useState(false);
+
+  const currentAccount = data.accounts.find((a) => a.id === data.currentAccountId) || data.accounts[0];
+  const visibleTrips = data.trips.filter((t) => t.ownerId === data.currentAccountId || t.private === false);
+
+  const togglePrivate = (e, trip) => {
+    e.stopPropagation();
+    updateData((d) => ({
+      ...d,
+      trips: d.trips.map((x) => (x.id === trip.id ? { ...x, private: !x.private } : x)),
+    }));
+    setOpenMenuTripId(null);
+  };
+
+  const removeTrip = (e, trip) => {
+    e.stopPropagation();
+    updateData((d) => ({ ...d, trips: d.trips.filter((x) => x.id !== trip.id) }));
+    setOpenMenuTripId(null);
+  };
+
+  return (
+    <div className="screen">
+      <div className="scroll-area" style={{ padding: '70px 20px 20px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--navy)' }}>내 여행</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>{currentAccount.name} 님</div>
+        </div>
+
+        {visibleTrips.length === 0 && (
+          <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 13, padding: '60px 0' }}>
+            아직 만든 여행이 없어요.
+            <br />
+            오른쪽 아래 + 를 눌러 시작해보세요.
+          </div>
+        )}
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {visibleTrips.map((t, i) => {
+            const stopCount = t.days.reduce((n, d) => n + d.length, 0);
+            const menuOpen = openMenuTripId === t.id;
+            return (
+              <div key={t.id} className="card" style={{ overflow: 'hidden', position: 'relative' }}>
+                <div
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpenMenuTripId(menuOpen ? null : t.id);
+                  }}
+                  style={{
+                    position: 'absolute',
+                    top: 10,
+                    right: 10,
+                    width: 26,
+                    height: 26,
+                    borderRadius: 13,
+                    background: 'rgba(27,43,75,0.5)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 2,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <svg width="3" height="13" viewBox="0 0 3 13">
+                    <circle cx="1.5" cy="1.5" r="1.5" fill="#fff" />
+                    <circle cx="1.5" cy="6.5" r="1.5" fill="#fff" />
+                    <circle cx="1.5" cy="11.5" r="1.5" fill="#fff" />
+                  </svg>
+                </div>
+
+                {menuOpen && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 40,
+                      right: 10,
+                      background: 'var(--navy)',
+                      borderRadius: 14,
+                      padding: 6,
+                      zIndex: 3,
+                      boxShadow: '0 6px 16px rgba(27,43,75,0.3)',
+                    }}
+                  >
+                    <div
+                      onClick={(e) => togglePrivate(e, t)}
+                      style={{ padding: '9px 14px', fontSize: 12, fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', cursor: 'pointer' }}
+                    >
+                      {t.private ? '공유로 전환' : '비공개로 전환'}
+                    </div>
+                    <div
+                      onClick={(e) => removeTrip(e, t)}
+                      style={{ padding: '9px 14px', fontSize: 12, fontWeight: 700, color: '#ff9a9a', whiteSpace: 'nowrap', cursor: 'pointer' }}
+                    >
+                      삭제
+                    </div>
+                  </div>
+                )}
+
+                <div
+                  onClick={() => openTrip(t.id)}
+                  style={{
+                    height: 96,
+                    background: GRADIENTS[i % GRADIENTS.length],
+                    display: 'flex',
+                    alignItems: 'flex-end',
+                    padding: 12,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <div
+                    style={{
+                      background: 'rgba(27,43,75,0.7)',
+                      color: '#fff',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      padding: '4px 9px',
+                      borderRadius: 99,
+                    }}
+                  >
+                    {t.private ? '🔒 비공개' : '👥 공유중'}
+                  </div>
+                </div>
+                <div onClick={() => openTrip(t.id)} style={{ padding: '14px 16px', cursor: 'pointer' }}>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--navy)', marginBottom: 3 }}>{t.destination}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                    {t.dateLabel} · {stopCount}곳
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div
+        onClick={() => setShowNewTrip(true)}
+        style={{
+          position: 'absolute',
+          right: 20,
+          bottom: 24,
+          width: 56,
+          height: 56,
+          borderRadius: 28,
+          background: 'var(--coral)',
+          boxShadow: '8px 8px 18px rgba(255,107,107,0.5), -5px -5px 12px rgba(255,180,180,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 25,
+          cursor: 'pointer',
+        }}
+      >
+        <svg width="24" height="24" viewBox="0 0 24 24">
+          <path d="M12 5v14M5 12h14" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" />
+        </svg>
+      </div>
+
+      {showNewTrip && <NewTripSheet onClose={() => setShowNewTrip(false)} />}
+    </div>
+  );
+}
