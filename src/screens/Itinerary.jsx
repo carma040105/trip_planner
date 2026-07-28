@@ -54,6 +54,24 @@ export default function Itinerary() {
           </div>
           <div style={{ fontSize: 19, fontWeight: 800, color: 'var(--navy)', flex: 1 }}>{trip.destination}</div>
           <div
+            onClick={() => setScreen('checklist')}
+            style={{
+              width: 34,
+              height: 34,
+              borderRadius: 17,
+              background: '#fff',
+              boxShadow: 'var(--shadow-flat)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 15,
+              cursor: 'pointer',
+              marginRight: 8,
+            }}
+          >
+            ✅
+          </div>
+          <div
             onClick={() => setScreen('map')}
             style={{
               width: 34,

@@ -31,7 +31,7 @@ const TravelContext = createContext(null);
 
 export function TravelProvider({ children }) {
   const [data, setData] = useState(loadData);
-  const [screen, setScreen] = useState(() => (loadData().loggedIn ? 'home' : 'login'));
+  const [screen, setScreen] = useState('home');
   const [selectedTripId, setSelectedTripId] = useState(null);
   const [selectedDay, setSelectedDay] = useState(0);
   const [mapProviderOverride, setMapProviderOverride] = useState(null);

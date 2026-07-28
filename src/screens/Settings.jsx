@@ -8,7 +8,7 @@ const MAP_PREF_ROWS = [
 ];
 
 export default function Settings() {
-  const { data, updateData, setScreen } = useTravel();
+  const { data, updateData } = useTravel();
   const currentAccount = data.accounts.find((a) => a.id === data.currentAccountId) || data.accounts[0];
 
   const addAccount = () => {
@@ -16,11 +16,6 @@ export default function Settings() {
     if (!name) return;
     const id = 'a' + Date.now();
     updateData((d) => ({ ...d, accounts: [...d.accounts, { id, name, email: name + '@myway.app' }] }));
-  };
-
-  const doLogout = () => {
-    updateData((d) => ({ ...d, loggedIn: false }));
-    setScreen('login');
   };
 
   return (
@@ -149,10 +144,6 @@ export default function Settings() {
               );
             })}
           </div>
-        </div>
-
-        <div onClick={doLogout} style={{ textAlign: 'center', fontSize: 13, fontWeight: 700, color: 'var(--text-muted)', padding: 10, cursor: 'pointer' }}>
-          로그아웃
         </div>
       </div>
     </div>

@@ -1,7 +1,7 @@
 import { useTravel } from '../store/TravelContext.jsx';
 
 const TABS = [
-  { id: 'home', label: '여행', icon: '🗺️', screens: ['home', 'itinerary', 'map'] },
+  { id: 'home', label: '여행', icon: '🗺️', screens: ['home', 'itinerary', 'map', 'checklist'] },
   { id: 'ai', label: 'AI', icon: '🤖', screens: ['ai'] },
   { id: 'settings', label: '내 정보', icon: '👤', screens: ['settings'] },
 ];

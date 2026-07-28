@@ -23,6 +23,7 @@ export default function NewTripSheet({ onClose }) {
       transport: form.transport,
       private: true,
       days,
+      checklist: [],
     };
     updateData((d) => ({ ...d, trips: [...d.trips, trip], lastTripId: id }));
     setForm(BLANK);

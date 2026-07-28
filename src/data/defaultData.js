@@ -22,7 +22,6 @@ export const FUEL_OPTIONS = [
 
 export function defaultData() {
   return {
-    loggedIn: false,
     accounts: [{ id: 'a1', name: '김지우', email: 'jiwoo@myway.app' }],
     currentAccountId: 'a1',
     trips: [
@@ -41,6 +40,10 @@ export function defaultData() {
           ],
           [],
         ],
+        checklist: [
+          { id: 'c1', text: '여권 유효기간 확인', done: false },
+          { id: 'c2', text: '엔화 환전', done: false },
+        ],
       },
       {
         id: 't2',
@@ -51,6 +54,7 @@ export function defaultData() {
         transport: 'bike',
         private: true,
         days: [[{ time: '08:00', name: '협재해수욕장', category: '자연', stay: '1시간' }]],
+        checklist: [{ id: 'c1', text: '자전거 헬멧', done: false }],
       },
     ],
     mapPrefs: { overseas: 'google', domesticCar: 'naver', domesticBike: 'kakao' },
