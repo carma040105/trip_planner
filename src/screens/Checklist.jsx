@@ -7,6 +7,7 @@ export default function Checklist() {
   const [newText, setNewText] = useState('');
   const [editingId, setEditingId] = useState(null);
   const [editingText, setEditingText] = useState('');
+  const [assigningId, setAssigningId] = useState(null);
 
   if (!trip) {
     return (
@@ -18,6 +19,7 @@ export default function Checklist() {
 
   const checklist = trip.checklist || [];
   const doneCount = checklist.filter((c) => c.done).length;
+  const accountById = (id) => data.accounts.find((a) => a.id === id);
 
   const updateChecklist = (fn) => {
     updateData((d) => ({
@@ -28,7 +30,7 @@ export default function Checklist() {
 
   const addItem = () => {
     if (!newText.trim()) return;
-    updateChecklist((list) => [...list, { id: 'c' + Date.now(), text: newText.trim(), done: false }]);
+    updateChecklist((list) => [...list, { id: 'c' + Date.now(), text: newText.trim(), done: false, assigneeId: null }]);
     setNewText('');
   };
 
@@ -38,6 +40,11 @@ export default function Checklist() {
 
   const removeItem = (id) => {
     updateChecklist((list) => list.filter((c) => c.id !== id));
+  };
+
+  const setAssignee = (id, assigneeId) => {
+    updateChecklist((list) => list.map((c) => (c.id === id ? { ...c, assigneeId } : c)));
+    setAssigningId(null);
   };
 
   const startEdit = (item) => {
@@ -75,62 +82,123 @@ export default function Checklist() {
         )}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {checklist.map((item) => (
-            <div key={item.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px' }}>
-              <div
-                onClick={() => toggleItem(item.id)}
-                style={{
-                  width: 22,
-                  height: 22,
-                  borderRadius: 11,
-                  flexShrink: 0,
-                  border: item.done ? 'none' : '2px solid #d8dce6',
-                  background: item.done ? 'var(--coral)' : 'transparent',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                }}
-              >
-                {item.done && (
-                  <svg width="12" height="10" viewBox="0 0 12 10">
-                    <path d="M1 5l3.5 3.5L11 1" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-                  </svg>
+          {checklist.map((item) => {
+            const assignee = accountById(item.assigneeId);
+            return (
+              <div key={item.id} className="card" style={{ padding: '12px 14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div
+                    onClick={() => toggleItem(item.id)}
+                    style={{
+                      width: 22,
+                      height: 22,
+                      borderRadius: 11,
+                      flexShrink: 0,
+                      border: item.done ? 'none' : '2px solid #d8dce6',
+                      background: item.done ? 'var(--coral)' : 'transparent',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {item.done && (
+                      <svg width="12" height="10" viewBox="0 0 12 10">
+                        <path d="M1 5l3.5 3.5L11 1" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                      </svg>
+                    )}
+                  </div>
+
+                  {editingId === item.id ? (
+                    <input
+                      autoFocus
+                      type="text"
+                      value={editingText}
+                      onChange={(e) => setEditingText(e.target.value)}
+                      onBlur={saveEdit}
+                      onKeyDown={(e) => e.key === 'Enter' && saveEdit()}
+                      style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'var(--bg)', borderRadius: 8, padding: '6px 8px', fontSize: 14 }}
+                    />
+                  ) : (
+                    <div
+                      onClick={() => startEdit(item)}
+                      style={{
+                        flex: 1,
+                        minWidth: 0,
+                        fontSize: 14,
+                        fontWeight: 700,
+                        color: item.done ? 'var(--text-muted)' : 'var(--navy)',
+                        textDecoration: item.done ? 'line-through' : 'none',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {item.text}
+                    </div>
+                  )}
+
+                  <div
+                    onClick={() => setAssigningId(assigningId === item.id ? null : item.id)}
+                    style={{
+                      flexShrink: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      padding: '4px 9px',
+                      borderRadius: 99,
+                      background: assignee ? 'var(--navy)' : 'var(--bg)',
+                      color: assignee ? '#fff' : 'var(--text-muted)',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {assignee ? assignee.name : '담당자'}
+                  </div>
+
+                  <div onClick={() => removeItem(item.id)} style={{ fontSize: 14, color: '#c4cad6', padding: 4, cursor: 'pointer' }}>
+                    ✕
+                  </div>
+                </div>
+
+                {assigningId === item.id && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border-soft)' }}>
+                    <div
+                      onClick={() => setAssignee(item.id, null)}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: 99,
+                        fontSize: 11,
+                        fontWeight: 700,
+                        background: !item.assigneeId ? 'var(--coral)' : 'var(--bg)',
+                        color: !item.assigneeId ? '#fff' : 'var(--navy)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      미정
+                    </div>
+                    {data.accounts.map((a) => (
+                      <div
+                        key={a.id}
+                        onClick={() => setAssignee(item.id, a.id)}
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: 99,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          background: item.assigneeId === a.id ? 'var(--coral)' : 'var(--bg)',
+                          color: item.assigneeId === a.id ? '#fff' : 'var(--navy)',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {a.name}
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
-
-              {editingId === item.id ? (
-                <input
-                  autoFocus
-                  type="text"
-                  value={editingText}
-                  onChange={(e) => setEditingText(e.target.value)}
-                  onBlur={saveEdit}
-                  onKeyDown={(e) => e.key === 'Enter' && saveEdit()}
-                  style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'var(--bg)', borderRadius: 8, padding: '6px 8px', fontSize: 14 }}
-                />
-              ) : (
-                <div
-                  onClick={() => startEdit(item)}
-                  style={{
-                    flex: 1,
-                    minWidth: 0,
-                    fontSize: 14,
-                    fontWeight: 700,
-                    color: item.done ? 'var(--text-muted)' : 'var(--navy)',
-                    textDecoration: item.done ? 'line-through' : 'none',
-                    cursor: 'pointer',
-                  }}
-                >
-                  {item.text}
-                </div>
-              )}
-
-              <div onClick={() => removeItem(item.id)} style={{ fontSize: 14, color: '#c4cad6', padding: 4, cursor: 'pointer' }}>
-                ✕
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
