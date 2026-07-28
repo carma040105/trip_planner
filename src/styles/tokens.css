@@ -30,9 +30,19 @@ html,
 body {
   margin: 0;
   padding: 0;
+  height: 100%;
   background: var(--bg-dim);
   font-family: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, 'Noto Sans KR', sans-serif;
   color: var(--navy);
+  overflow: hidden;
+  overscroll-behavior: none;
+  position: fixed;
+  inset: 0;
+  width: 100%;
+}
+
+#root {
+  height: 100%;
 }
 
 button,
