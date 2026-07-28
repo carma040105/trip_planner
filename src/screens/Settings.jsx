@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useTravel } from '../store/TravelContext.jsx';
 import { PROVIDER_META, FUEL_OPTIONS } from '../data/defaultData';
 
@@ -10,12 +11,27 @@ const MAP_PREF_ROWS = [
 export default function Settings() {
   const { data, updateData } = useTravel();
   const currentAccount = data.accounts.find((a) => a.id === data.currentAccountId) || data.accounts[0];
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState('');
 
   const addAccount = () => {
     const name = window.prompt('추가할 계정 이름을 입력하세요 (가족·친구)');
     if (!name) return;
     const id = 'a' + Date.now();
     updateData((d) => ({ ...d, accounts: [...d.accounts, { id, name, email: name + '@myway.app' }] }));
+  };
+
+  const startEditName = () => {
+    setNameDraft(currentAccount.name);
+    setEditingName(true);
+  };
+
+  const saveName = () => {
+    const trimmed = nameDraft.trim();
+    if (trimmed) {
+      updateData((d) => ({ ...d, accounts: d.accounts.map((a) => (a.id === currentAccount.id ? { ...a, name: trimmed } : a)) }));
+    }
+    setEditingName(false);
   };
 
   return (
@@ -34,12 +50,27 @@ export default function Settings() {
               color: '#fff',
               fontWeight: 700,
               fontSize: 17,
+              flexShrink: 0,
             }}
           >
             {currentAccount.name[0]}
           </div>
-          <div>
-            <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)' }}>{currentAccount.name}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {editingName ? (
+              <input
+                autoFocus
+                type="text"
+                value={nameDraft}
+                onChange={(e) => setNameDraft(e.target.value)}
+                onBlur={saveName}
+                onKeyDown={(e) => e.key === 'Enter' && saveName()}
+                style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)', border: 'none', outline: 'none', background: 'var(--bg)', borderRadius: 8, padding: '4px 8px', width: '100%', boxSizing: 'border-box' }}
+              />
+            ) : (
+              <div onClick={startEditName} style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)', cursor: 'pointer' }}>
+                {currentAccount.name} <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 500 }}>✏️</span>
+              </div>
+            )}
             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{currentAccount.email}</div>
           </div>
         </div>
