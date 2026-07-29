@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useTravel } from '../store/TravelContext.jsx';
 import { PROVIDER_META } from '../data/defaultData';
 import { tripTypeKey, googleEmbedUrl } from '../lib/mapProviders';
-import { KAKAO_MAP_KEY, NAVER_MAP_CLIENT_ID } from '../lib/mapKeys';
-import { loadKakaoMaps, loadNaverMaps } from '../lib/mapSdkLoader';
+import { KAKAO_MAP_KEY, NAVER_MAP_CLIENT_ID, GOOGLE_MAPS_KEY } from '../lib/mapKeys';
+import { loadKakaoMaps, loadNaverMaps, loadGoogleMaps } from '../lib/mapSdkLoader';
 
 const DEFAULT_CENTER = { lat: 37.5665, lng: 126.978 }; // Seoul, fallback when destination geocoding fails/unavailable
 
@@ -15,7 +15,11 @@ export default function MapScreen() {
   const typeKey = tripTypeKey(trip);
   const activeProvider = mapProviderOverride || data.mapPrefs[typeKey] || 'google';
   const meta = PROVIDER_META[activeProvider];
-  const providerKeyMissing = (activeProvider === 'kakao' && !KAKAO_MAP_KEY) || (activeProvider === 'naver' && !NAVER_MAP_CLIENT_ID);
+  const providerKeyMissing =
+    (activeProvider === 'kakao' && !KAKAO_MAP_KEY) ||
+    (activeProvider === 'naver' && !NAVER_MAP_CLIENT_ID) ||
+    (activeProvider === 'google' && !GOOGLE_MAPS_KEY);
+  const useIframeFallback = activeProvider === 'google' && !GOOGLE_MAPS_KEY;
 
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
@@ -79,6 +83,38 @@ export default function MapScreen() {
 
           naver.maps.Event.addListener(map, 'click', (e) => {
             setPendingStop({ lat: e.coord.lat(), lng: e.coord.lng() });
+          });
+        })
+        .catch(() => !cancelled && setSdkError(true));
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (activeProvider === 'google' && GOOGLE_MAPS_KEY && mapContainerRef.current) {
+      let cancelled = false;
+      loadGoogleMaps(GOOGLE_MAPS_KEY)
+        .then((google) => {
+          if (cancelled || !mapContainerRef.current) return;
+          const map = new google.maps.Map(mapContainerRef.current, {
+            center: DEFAULT_CENTER,
+            zoom: 12,
+            gestureHandling: 'greedy', // pan/zoom with one finger or plain scroll, no ctrl/two-finger requirement
+            mapTypeControl: false,
+            streetViewControl: false,
+          });
+          mapInstanceRef.current = map;
+
+          if (trip?.destination) {
+            new google.maps.Geocoder().geocode({ address: trip.destination }, (results, status) => {
+              if (status === 'OK' && results[0]) {
+                map.setCenter(results[0].geometry.location);
+              }
+            });
+          }
+
+          map.addListener('click', (e) => {
+            setPendingStop({ lat: e.latLng.lat(), lng: e.latLng.lng() });
           });
         })
         .catch(() => !cancelled && setSdkError(true));
@@ -173,7 +209,7 @@ export default function MapScreen() {
         })}
       </div>
 
-      {activeProvider === 'google' && trip && (
+      {useIframeFallback && trip && (
         <iframe
           title="Google Map"
           src={googleEmbedUrl(trip.destination)}
@@ -182,7 +218,7 @@ export default function MapScreen() {
         />
       )}
 
-      {(activeProvider === 'kakao' || activeProvider === 'naver') && !providerKeyMissing && !sdkError && (
+      {!providerKeyMissing && !sdkError && (
         <>
           <div ref={mapContainerRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} />
           <div
@@ -206,7 +242,7 @@ export default function MapScreen() {
         </>
       )}
 
-      {(providerKeyMissing || sdkError) && activeProvider !== 'google' && (
+      {(providerKeyMissing || sdkError) && !useIframeFallback && (
         <div style={{ position: 'absolute', inset: 0, top: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40 }}>
           <div className="card" style={{ padding: 24, textAlign: 'center' }}>
             <div style={{ fontSize: 30, marginBottom: 10 }}>{meta.emoji}</div>
