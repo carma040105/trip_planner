@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useTravel } from '../store/TravelContext.jsx';
-import { tripTypeKey, navigationUrl } from '../lib/mapProviders';
+import { tripTypeKey } from '../lib/mapProviders';
+import StopMapPreview from '../components/StopMapPreview.jsx';
 
 const BLANK_STOP = { time: '', name: '', category: '', stay: '' };
 
@@ -8,6 +9,7 @@ export default function Itinerary() {
   const { data, updateData, selectedTripId, selectedDay, setSelectedDay, setScreen } = useTravel();
   const [showNewStop, setShowNewStop] = useState(false);
   const [stopForm, setStopForm] = useState(BLANK_STOP);
+  const [previewStop, setPreviewStop] = useState(null);
 
   const trip = data.trips.find((t) => t.id === selectedTripId);
 
@@ -21,11 +23,6 @@ export default function Itinerary() {
 
   const dayStops = trip.days[selectedDay] || [];
   const activeProvider = data.mapPrefs[tripTypeKey(trip)] || 'google';
-
-  const openNavigation = (stop) => {
-    const url = navigationUrl(activeProvider, stop);
-    if (url) window.open(url, '_blank', 'noopener');
-  };
 
   const removeStop = (idx) => {
     updateData((d) => ({
@@ -122,7 +119,7 @@ export default function Itinerary() {
             <div
               key={idx}
               className="card"
-              onClick={() => openNavigation(s)}
+              onClick={() => setPreviewStop(s)}
               style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', cursor: 'pointer' }}
             >
               <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--coral)', width: 44, flexShrink: 0 }}>{s.time}</div>
@@ -214,6 +211,8 @@ export default function Itinerary() {
           + 장소 추가
         </div>
       </div>
+
+      {previewStop && <StopMapPreview stop={previewStop} provider={activeProvider} onClose={() => setPreviewStop(null)} />}
     </div>
   );
 }
