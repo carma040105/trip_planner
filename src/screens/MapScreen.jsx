@@ -132,10 +132,11 @@ export default function MapScreen() {
 
   const addPendingStop = () => {
     if (!trip || !stopForm.name.trim()) return;
+    const newStop = { ...stopForm, lat: pendingStop.lat, lng: pendingStop.lng };
     updateData((d) => ({
       ...d,
       trips: d.trips.map((t2) =>
-        t2.id === trip.id ? { ...t2, days: t2.days.map((day, di) => (di === selectedDay ? [...day, { ...stopForm }] : day)) } : t2
+        t2.id === trip.id ? { ...t2, days: t2.days.map((day, di) => (di === selectedDay ? [...day, newStop] : day)) } : t2
       ),
     }));
     setPendingStop(null);
