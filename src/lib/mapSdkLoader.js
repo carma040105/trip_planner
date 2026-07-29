@@ -1,5 +1,6 @@
 let kakaoPromise = null;
 let naverPromise = null;
+let googlePromise = null;
 
 export function loadKakaoMaps(appKey) {
   if (window.kakao && window.kakao.maps) return Promise.resolve(window.kakao);
@@ -31,4 +32,22 @@ export function loadNaverMaps(clientId) {
     document.head.appendChild(script);
   });
   return naverPromise;
+}
+
+export function loadGoogleMaps(apiKey) {
+  if (window.google && window.google.maps) return Promise.resolve(window.google);
+  if (googlePromise) return googlePromise;
+  googlePromise = new Promise((resolve, reject) => {
+    const callbackName = '__initGoogleMaps';
+    window[callbackName] = () => resolve(window.google);
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&callback=${callbackName}&loading=async`;
+    script.async = true;
+    script.onerror = () => {
+      googlePromise = null;
+      reject(new Error('Google Maps SDK failed to load'));
+    };
+    document.head.appendChild(script);
+  });
+  return googlePromise;
 }
