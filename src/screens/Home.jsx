@@ -1,12 +1,20 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useTravel } from '../store/TravelContext.jsx';
 import { GRADIENTS } from '../data/defaultData';
+import { resizeImageFile } from '../lib/imageUtils';
 import NewTripSheet from '../components/NewTripSheet.jsx';
+
+function countryLabel(trip) {
+  if (trip.country === 'overseas') return '🌍 해외';
+  return trip.transport === 'bike' ? '🚴 국내 · 자전거' : '🚗 국내 · 자동차';
+}
 
 export default function Home() {
   const { data, updateData, openTrip } = useTravel();
   const [openMenuTripId, setOpenMenuTripId] = useState(null);
   const [showNewTrip, setShowNewTrip] = useState(false);
+  const photoInputRef = useRef(null);
+  const photoTargetTripId = useRef(null);
 
   const currentAccount = data.accounts.find((a) => a.id === data.currentAccountId) || data.accounts[0];
   const visibleTrips = data.trips.filter((t) => t.ownerId === data.currentAccountId || t.private === false);
@@ -26,8 +34,29 @@ export default function Home() {
     setOpenMenuTripId(null);
   };
 
+  const startPhotoChange = (e, trip) => {
+    e.stopPropagation();
+    photoTargetTripId.current = trip.id;
+    setOpenMenuTripId(null);
+    photoInputRef.current?.click();
+  };
+
+  const onPhotoSelected = async (e) => {
+    const file = e.target.files?.[0];
+    const tripId = photoTargetTripId.current;
+    e.target.value = '';
+    if (!file || !tripId) return;
+    try {
+      const dataUrl = await resizeImageFile(file);
+      updateData((d) => ({ ...d, trips: d.trips.map((x) => (x.id === tripId ? { ...x, coverImage: dataUrl } : x)) }));
+    } catch {
+      window.alert('사진을 처리하지 못했어요. 다른 사진으로 시도해주세요.');
+    }
+  };
+
   return (
     <div className="screen">
+      <input ref={photoInputRef} type="file" accept="image/*" onChange={onPhotoSelected} style={{ display: 'none' }} />
       <div className="scroll-area" style={{ padding: '70px 20px 20px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--navy)' }}>내 여행</div>
@@ -89,6 +118,12 @@ export default function Home() {
                     }}
                   >
                     <div
+                      onClick={(e) => startPhotoChange(e, t)}
+                      style={{ padding: '9px 14px', fontSize: 12, fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', cursor: 'pointer' }}
+                    >
+                      {t.coverImage ? '대표 사진 변경' : '대표 사진 추가'}
+                    </div>
+                    <div
                       onClick={(e) => togglePrivate(e, t)}
                       style={{ padding: '9px 14px', fontSize: 12, fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', cursor: 'pointer' }}
                     >
@@ -106,25 +141,61 @@ export default function Home() {
                 <div
                   onClick={() => openTrip(t.id)}
                   style={{
-                    height: 96,
-                    background: GRADIENTS[i % GRADIENTS.length],
+                    height: 150,
+                    background: t.coverImage ? `url(${t.coverImage}) center/cover no-repeat` : GRADIENTS[i % GRADIENTS.length],
                     display: 'flex',
-                    alignItems: 'flex-end',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
                     padding: 12,
                     cursor: 'pointer',
+                    position: 'relative',
                   }}
                 >
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <div
+                      style={{
+                        background: 'rgba(27,43,75,0.7)',
+                        color: '#fff',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        padding: '4px 9px',
+                        borderRadius: 99,
+                      }}
+                    >
+                      {t.private ? '🔒 비공개' : '👥 공유중'}
+                    </div>
+                  </div>
+
+                  {!t.coverImage && (
+                    <div
+                      onClick={(e) => startPhotoChange(e, t)}
+                      style={{
+                        alignSelf: 'center',
+                        textAlign: 'center',
+                        color: 'rgba(255,255,255,0.95)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <div style={{ fontSize: 26, marginBottom: 2 }}>📷</div>
+                      <div style={{ fontSize: 11, fontWeight: 700, background: 'rgba(27,43,75,0.35)', padding: '3px 10px', borderRadius: 99 }}>
+                        대표 사진 추가
+                      </div>
+                    </div>
+                  )}
+
                   <div
                     style={{
-                      background: 'rgba(27,43,75,0.7)',
-                      color: '#fff',
                       fontSize: 11,
-                      fontWeight: 700,
+                      fontWeight: 800,
+                      color: '#fff',
+                      background: 'rgba(27,43,75,0.55)',
+                      alignSelf: 'flex-start',
                       padding: '4px 9px',
                       borderRadius: 99,
+                      textShadow: '0 1px 2px rgba(0,0,0,0.2)',
                     }}
                   >
-                    {t.private ? '🔒 비공개' : '👥 공유중'}
+                    {countryLabel(t)}
                   </div>
                 </div>
                 <div onClick={() => openTrip(t.id)} style={{ padding: '14px 16px', cursor: 'pointer' }}>
