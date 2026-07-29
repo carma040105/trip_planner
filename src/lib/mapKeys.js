@@ -5,3 +5,4 @@
 // then redeploy (Vite bakes them into the build, unlike server-only function env vars).
 export const KAKAO_MAP_KEY = import.meta.env.VITE_KAKAO_MAP_KEY || '';
 export const NAVER_MAP_CLIENT_ID = import.meta.env.VITE_NAVER_MAP_CLIENT_ID || '';
+export const GOOGLE_MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_KEY || '';
