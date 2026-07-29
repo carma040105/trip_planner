@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useTravel } from '../store/TravelContext.jsx';
+import { tripTypeKey, navigationUrl } from '../lib/mapProviders';
 
 const BLANK_STOP = { time: '', name: '', category: '', stay: '' };
 
@@ -19,6 +20,12 @@ export default function Itinerary() {
   }
 
   const dayStops = trip.days[selectedDay] || [];
+  const activeProvider = data.mapPrefs[tripTypeKey(trip)] || 'google';
+
+  const openNavigation = (stop) => {
+    const url = navigationUrl(activeProvider, stop);
+    if (url) window.open(url, '_blank', 'noopener');
+  };
 
   const removeStop = (idx) => {
     updateData((d) => ({
@@ -112,7 +119,12 @@ export default function Itinerary() {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {dayStops.map((s, idx) => (
-            <div key={idx} className="card" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px' }}>
+            <div
+              key={idx}
+              className="card"
+              onClick={() => openNavigation(s)}
+              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', cursor: 'pointer' }}
+            >
               <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--coral)', width: 44, flexShrink: 0 }}>{s.time}</div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--navy)' }}>{s.name}</div>
@@ -120,7 +132,14 @@ export default function Itinerary() {
                   {s.category} · {s.stay}
                 </div>
               </div>
-              <div onClick={() => removeStop(idx)} style={{ fontSize: 14, color: '#c4cad6', padding: 4, cursor: 'pointer' }}>
+              <div style={{ fontSize: 15, flexShrink: 0 }}>🧭</div>
+              <div
+                onClick={(e) => {
+                  e.stopPropagation();
+                  removeStop(idx);
+                }}
+                style={{ fontSize: 14, color: '#c4cad6', padding: 4, cursor: 'pointer', flexShrink: 0 }}
+              >
                 ✕
               </div>
             </div>
