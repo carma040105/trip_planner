@@ -1,14 +1,28 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useTravel } from '../store/TravelContext.jsx';
+import { resizeImageFile } from '../lib/imageUtils';
 
-const BLANK = { destination: '', dateLabel: '', country: 'overseas', transport: null, nights: 3 };
+const BLANK = { destination: '', dateLabel: '', country: 'overseas', transport: null, nights: 3, coverImage: null };
 
 export default function NewTripSheet({ onClose }) {
   const { data, updateData, openTrip } = useTravel();
   const [form, setForm] = useState(BLANK);
+  const photoInputRef = useRef(null);
 
   const setCountry = (country) =>
     setForm((f) => ({ ...f, country, transport: country === 'overseas' ? null : f.transport || 'car' }));
+
+  const onPhotoSelected = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      const dataUrl = await resizeImageFile(file);
+      setForm((f) => ({ ...f, coverImage: dataUrl }));
+    } catch {
+      window.alert('사진을 처리하지 못했어요. 다른 사진으로 시도해주세요.');
+    }
+  };
 
   const createTrip = () => {
     if (!form.destination.trim()) return;
@@ -24,6 +38,7 @@ export default function NewTripSheet({ onClose }) {
       private: true,
       days,
       checklist: [],
+      coverImage: form.coverImage,
     };
     updateData((d) => ({ ...d, trips: [...d.trips, trip], lastTripId: id }));
     setForm(BLANK);
@@ -84,6 +99,32 @@ export default function NewTripSheet({ onClose }) {
             marginBottom: 10,
           }}
         />
+
+        <input ref={photoInputRef} type="file" accept="image/*" onChange={onPhotoSelected} style={{ display: 'none' }} />
+        <div
+          onClick={() => photoInputRef.current?.click()}
+          style={{
+            width: '100%',
+            boxSizing: 'border-box',
+            borderRadius: 14,
+            marginBottom: 10,
+            cursor: 'pointer',
+            overflow: 'hidden',
+            background: form.coverImage ? `url(${form.coverImage}) center/cover no-repeat` : 'var(--bg)',
+            height: form.coverImage ? 110 : 54,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+          }}
+        >
+          {!form.coverImage && (
+            <>
+              <span style={{ fontSize: 16 }}>📷</span>
+              <span style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 600 }}>대표 사진 추가 (선택)</span>
+            </>
+          )}
+        </div>
 
         <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
           {[
