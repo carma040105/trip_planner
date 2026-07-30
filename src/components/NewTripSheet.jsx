@@ -1,13 +1,15 @@
 import { useRef, useState } from 'react';
 import { useTravel } from '../store/TravelContext.jsx';
 import { resizeImageFile } from '../lib/imageUtils';
+import DateRangePicker, { formatDateLabel, nightsBetween } from './DateRangePicker.jsx';
 
-const BLANK = { destination: '', dateLabel: '', country: 'overseas', transport: null, nights: 3, coverImage: null };
+const BLANK = { destination: '', startDate: null, endDate: null, country: 'overseas', transport: null, coverImage: null };
 
 export default function NewTripSheet({ onClose }) {
   const { createTrip, openTrip } = useTravel();
   const [form, setForm] = useState(BLANK);
   const [busy, setBusy] = useState(false);
+  const [showCalendar, setShowCalendar] = useState(false);
   const photoInputRef = useRef(null);
 
   const setCountry = (country) =>
@@ -25,14 +27,16 @@ export default function NewTripSheet({ onClose }) {
     }
   };
 
+  const nights = form.startDate && form.endDate ? nightsBetween(form.startDate, form.endDate) : 3;
+
   const submit = async () => {
     if (!form.destination.trim() || busy) return;
     setBusy(true);
-    const days = Array.from({ length: form.nights + 1 }, () => []);
+    const days = Array.from({ length: nights + 1 }, () => []);
     try {
       const id = await createTrip({
         destination: form.destination,
-        dateLabel: form.dateLabel || '날짜 미정',
+        dateLabel: form.startDate ? formatDateLabel(form.startDate, form.endDate) : '날짜 미정',
         country: form.country,
         transport: form.transport,
         days,
@@ -84,13 +88,11 @@ export default function NewTripSheet({ onClose }) {
             marginBottom: 10,
           }}
         />
-        <input
-          type="text"
-          value={form.dateLabel}
-          onChange={(e) => setForm((f) => ({ ...f, dateLabel: e.target.value }))}
-          placeholder="날짜 (예: 2026.3.28 – 4.2)"
+        <div
+          onClick={() => setShowCalendar(true)}
           style={{
             width: '100%',
+            boxSizing: 'border-box',
             border: 'none',
             outline: 'none',
             background: 'var(--bg)',
@@ -98,8 +100,20 @@ export default function NewTripSheet({ onClose }) {
             padding: '12px 14px',
             fontSize: 14,
             marginBottom: 10,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            cursor: 'pointer',
+            color: form.startDate ? 'var(--navy)' : 'var(--text-muted)',
           }}
-        />
+        >
+          <span style={{ fontSize: 15 }}>📅</span>
+          <span style={{ flex: 1 }}>
+            {form.startDate
+              ? `${formatDateLabel(form.startDate, form.endDate)}${form.endDate ? ` · ${nights === 0 ? '당일치기' : `${nights}박 ${nights + 1}일`}` : ''}`
+              : '여행 날짜 선택'}
+          </span>
+        </div>
 
         <input ref={photoInputRef} type="file" accept="image/*" onChange={onPhotoSelected} style={{ display: 'none' }} />
         <div
@@ -156,45 +170,22 @@ export default function NewTripSheet({ onClose }) {
           </div>
         )}
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-          <div style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>숙박 일수</div>
-          <div
-            onClick={() => setForm((f) => ({ ...f, nights: Math.max(1, f.nights - 1) }))}
-            style={{
-              width: 30,
-              height: 30,
-              borderRadius: 15,
-              background: 'var(--bg)',
-              textAlign: 'center',
-              lineHeight: '30px',
-              fontWeight: 800,
-              cursor: 'pointer',
-            }}
-          >
-            −
-          </div>
-          <div style={{ fontSize: 14, fontWeight: 800 }}>{form.nights}박</div>
-          <div
-            onClick={() => setForm((f) => ({ ...f, nights: f.nights + 1 }))}
-            style={{
-              width: 30,
-              height: 30,
-              borderRadius: 15,
-              background: 'var(--bg)',
-              textAlign: 'center',
-              lineHeight: '30px',
-              fontWeight: 800,
-              cursor: 'pointer',
-            }}
-          >
-            +
-          </div>
-        </div>
-
-        <button className="btn-primary" onClick={submit} disabled={busy}>
+        <button className="btn-primary" onClick={submit} disabled={busy} style={{ marginTop: 6 }}>
           {busy ? '만드는 중…' : '여행 만들기'}
         </button>
       </div>
+
+      {showCalendar && (
+        <DateRangePicker
+          initialStart={form.startDate}
+          initialEnd={form.endDate}
+          onConfirm={(start, end) => {
+            setForm((f) => ({ ...f, startDate: start, endDate: end }));
+            setShowCalendar(false);
+          }}
+          onClose={() => setShowCalendar(false)}
+        />
+      )}
     </>
   );
 }
