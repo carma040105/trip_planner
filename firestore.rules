@@ -33,85 +33,111 @@ service cloud.firestore {
     }
 
     match /trips/{tripId} {
-      // Always looked up via get() on the trip doc itself (never via
-      // `resource.data`) so this works the same whether it's evaluated for
-      // the trip document or for one of its subcollections below — inside a
-      // subcollection match, `resource` is the subcollection document (which
-      // has no `ownerId` field), not the trip.
-      function tripOwnerId() {
-        return get(/databases/$(database)/documents/trips/$(tripId)).data.ownerId;
-      }
-      function isTripOwner() {
-        return isSignedIn() && tripOwnerId() == request.auth.uid;
-      }
+      // The trip owner always ALSO gets a doc at members/{ownerUid} with
+      // role 'owner' (written in the same batch that creates the trip), so
+      // membership in this subcollection is the single source of truth for
+      // access — nothing here ever needs to read the trip document's own
+      // `ownerId` field. That matters because `resource` refers to whatever
+      // document is currently being evaluated (the trip doc at the top
+      // level, but a subcollection doc — with no `ownerId` field at all —
+      // in every match block below), and a raw get() on "this same trip
+      // doc" while a write to it is still in flight (e.g. the batch that
+      // creates the trip + owner member doc together) isn't guaranteed to
+      // see it yet. exists()/get() scoped to the members subcollection path
+      // don't have either problem.
       function isMember() {
         return isSignedIn() &&
           exists(/databases/$(database)/documents/trips/$(tripId)/members/$(request.auth.uid));
       }
-      function memberRole() {
-        return get(/databases/$(database)/documents/trips/$(tripId)/members/$(request.auth.uid)).data.role;
+      function myRole() {
+        return isMember()
+          ? get(/databases/$(database)/documents/trips/$(tripId)/members/$(request.auth.uid)).data.role
+          : null;
+      }
+      function isTripOwner() {
+        return myRole() == 'owner';
       }
       function canEditTrip() {
-        return isTripOwner() || (isMember() && memberRole() in ['editor', 'custom']);
+        return myRole() in ['owner', 'editor', 'custom'];
       }
 
-      allow read: if isSignedIn() && (isTripOwner() || isMember());
+      // NOT isMember() here: this rule runs for the `list` query that loads
+      // "my trips" (where memberIds array-contains uid), and an exists()/
+      // get() lookup keyed off of $(tripId) — the very id the list query is
+      // still resolving — errors out during list evaluation. Checking the
+      // denormalized memberIds array already on the trip doc itself needs
+      // no cross-document lookup, so it works for both list and get.
+      allow read: if isSignedIn() && request.auth.uid in resource.data.memberIds;
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
       allow update: if canEditTrip();
       allow delete: if isTripOwner();
 
       match /members/{memberUid} {
-        allow read: if isSignedIn() && (isTripOwner() || isMember());
+        allow read: if isMember();
         // owner manages members directly; anyone else may only create their OWN
-        // membership doc (accepting a link/email invite).
+        // membership doc (accepting a link/email invite, or the owner's own
+        // doc created alongside the trip — at that moment isMember() is
+        // still false since this very doc doesn't exist yet, so it's the
+        // `request.auth.uid == memberUid` half of the OR that allows it).
         allow create: if isSignedIn() && (isTripOwner() || request.auth.uid == memberUid);
-        allow update: if isSignedIn() && isTripOwner();
+        allow update: if isTripOwner();
         allow delete: if isSignedIn() && (isTripOwner() || request.auth.uid == memberUid);
       }
 
       match /invites/{inviteId} {
         // must be readable by a signed-in non-member to validate a link before joining.
         allow read: if isSignedIn();
-        allow create: if isSignedIn() && (isTripOwner() || memberRole() in ['editor', 'custom']);
-        allow update, delete: if isSignedIn() && isTripOwner();
+        allow create: if canEditTrip();
+        allow update, delete: if isTripOwner();
       }
 
       match /pendingInvites/{pendingId} {
-        allow read: if isSignedIn() && (isTripOwner() || isMember() || resource.data.email == request.auth.token.email);
-        allow create: if isSignedIn() && (isTripOwner() || memberRole() in ['editor', 'custom']);
-        allow update: if isSignedIn() && (isTripOwner() || isMember() || resource.data.email == request.auth.token.email);
-        allow delete: if isSignedIn() && (isTripOwner() || isMember() || resource.data.email == request.auth.token.email);
+        allow read: if isSignedIn() && (isMember() || resource.data.email == request.auth.token.email);
+        allow create: if canEditTrip();
+        allow update: if isSignedIn() && (isMember() || resource.data.email == request.auth.token.email);
+        allow delete: if isSignedIn() && (isMember() || resource.data.email == request.auth.token.email);
       }
 
       match /activity/{id} {
-        allow read: if isSignedIn() && (isTripOwner() || isMember());
-        allow create: if isSignedIn() && (isTripOwner() || isMember());
+        allow read: if isMember();
+        allow create: if isMember();
         allow update, delete: if false;
       }
 
       match /comments/{id} {
-        allow read: if isSignedIn() && (isTripOwner() || isMember());
-        allow create: if isSignedIn() && (isTripOwner() || isMember());
-        allow update: if isSignedIn() && (isTripOwner() || isMember());
+        allow read: if isMember();
+        allow create: if isMember();
+        allow update: if isMember();
         allow delete: if isSignedIn() && (isTripOwner() || resource.data.authorId == request.auth.uid);
       }
 
       match /proposals/{id} {
-        allow read: if isSignedIn() && (isTripOwner() || isMember());
-        allow create: if isSignedIn() && (isTripOwner() || isMember());
+        allow read: if isMember();
+        allow create: if isMember();
         allow update: if false;
         allow delete: if isSignedIn() && (isTripOwner() || resource.data.proposedBy == request.auth.uid);
       }
 
       match /presence/{memberUid} {
-        allow read: if isSignedIn() && (isTripOwner() || isMember());
+        allow read: if isMember();
         allow write: if isSignedIn() && request.auth.uid == memberUid;
       }
 
       match /editingLocks/{lockId} {
-        allow read: if isSignedIn() && (isTripOwner() || isMember());
-        allow write: if isSignedIn() && (isTripOwner() || isMember());
+        allow read: if isMember();
+        allow write: if isMember();
       }
+    }
+
+    // checkPendingInvites() runs a collectionGroup('pendingInvites') query
+    // (filtered to the caller's own email) right after every sign-in, to
+    // turn email invites into notifications. Collection-group queries are
+    // only permitted by a rule declared with this {path=**} recursive
+    // wildcard form — the nested `match /trips/{tripId}/pendingInvites/...`
+    // rule above only covers direct/known-parent access, not a query that
+    // spans every trip's pendingInvites subcollection at once.
+    match /{path=**}/pendingInvites/{pendingId} {
+      allow read: if isSignedIn() && resource.data.email == request.auth.token.email;
     }
   }
 }
