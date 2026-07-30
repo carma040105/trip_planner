@@ -30,7 +30,7 @@ export default function ImportLocalTrips() {
           country: t.country || 'overseas',
           transport: t.transport || null,
           coverImage: t.coverImage || null,
-          days: (t.days || []).map((day) => day.map((s) => ({ ...s, id: s.id || crypto.randomUUID() }))),
+          days: (t.days || []).map((day) => ({ stops: day.map((s) => ({ ...s, id: s.id || crypto.randomUUID() })) })),
           checklist: (t.checklist || []).map((c) => ({ ...c, assigneeId: null, doneBy: null, doneAt: null })),
         });
       }
