@@ -56,7 +56,7 @@ export default function Itinerary() {
   const proposeOnly = !editable && canPropose(trip, myMember, uid);
   const iOwn = canManageMembers(trip, uid);
 
-  const dayStops = trip.days[selectedDay] || [];
+  const dayStops = trip.days[selectedDay]?.stops || [];
   const activeProvider = (profile?.mapPrefs || {})[tripTypeKey(trip)] || 'google';
   const commentCount = (stopId) => comments.filter((c) => c.targetKey === stopId).length;
 
@@ -65,7 +65,7 @@ export default function Itinerary() {
     const stop = dayStops[idx];
     updateTrip(trip.id, (t) => ({
       ...t,
-      days: t.days.map((day, di) => (di === selectedDay ? day.filter((_, i2) => i2 !== idx) : day)),
+      days: t.days.map((day, di) => (di === selectedDay ? { stops: day.stops.filter((_, i2) => i2 !== idx) } : day)),
     }));
     logActivity(trip.id, { authorId: uid, authorName: myName, type: 'stop_remove', message: `"${stop.name}" 일정을 삭제했어요` });
   };
@@ -75,7 +75,7 @@ export default function Itinerary() {
     const stop = dayStops[idx];
     updateTrip(trip.id, (t) => ({
       ...t,
-      days: t.days.map((day, di) => (di === selectedDay ? day.map((s, i2) => (i2 === idx ? { ...s, assigneeId } : s)) : day)),
+      days: t.days.map((day, di) => (di === selectedDay ? { stops: day.stops.map((s, i2) => (i2 === idx ? { ...s, assigneeId } : s)) } : day)),
     }));
     setAssigningKey(null);
     if (assigneeId && assigneeId !== uid) {
@@ -88,7 +88,7 @@ export default function Itinerary() {
     if (approve) {
       updateTrip(trip.id, (t) => ({
         ...t,
-        days: t.days.map((day, di) => (di === proposal.dayIndex ? [...day, proposal.stop] : day)),
+        days: t.days.map((day, di) => (di === proposal.dayIndex ? { stops: [...day.stops, proposal.stop] } : day)),
       }));
       logActivity(trip.id, { authorId: uid, authorName: myName, type: 'proposal_approved', message: `"${proposal.stop.name}" 제안을 승인했어요` });
       if (proposal.proposedBy !== uid) {
