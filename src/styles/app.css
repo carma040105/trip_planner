@@ -163,3 +163,10 @@
 .chip.coral.active {
   background: var(--coral);
 }
+
+.wheel-scroll {
+  scrollbar-width: none;
+}
+.wheel-scroll::-webkit-scrollbar {
+  display: none;
+}
