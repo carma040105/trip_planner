@@ -32,7 +32,7 @@ export default function NewTripSheet({ onClose }) {
   const submit = async () => {
     if (!form.destination.trim() || busy) return;
     setBusy(true);
-    const days = Array.from({ length: nights + 1 }, () => []);
+    const days = Array.from({ length: nights + 1 }, () => ({ stops: [] }));
     try {
       const id = await createTrip({
         destination: form.destination,
