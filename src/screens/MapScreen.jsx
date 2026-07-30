@@ -4,8 +4,10 @@ import { PROVIDER_META } from '../data/defaultData';
 import { tripTypeKey, googleEmbedUrl } from '../lib/mapProviders';
 import { KAKAO_MAP_KEY, NAVER_MAP_CLIENT_ID, GOOGLE_MAPS_KEY } from '../lib/mapKeys';
 import { loadKakaoMaps, loadNaverMaps, loadGoogleMaps } from '../lib/mapSdkLoader';
+import TimeStaySection from '../components/TimeStaySection.jsx';
 
 const DEFAULT_CENTER = { lat: 37.5665, lng: 126.978 }; // Seoul, fallback when destination geocoding fails/unavailable
+const DEFAULT_STOP_FORM = { time: '09:00', name: '', category: '', stay: '1시간' };
 
 export default function MapScreen() {
   const { data, updateData, selectedTripId, selectedDay, mapProviderOverride, setMapProviderOverride, setScreen, showToast } =
@@ -23,13 +25,22 @@ export default function MapScreen() {
 
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
+  const sdkRef = useRef(null);
   const [sdkError, setSdkError] = useState(false);
+  const [searchText, setSearchText] = useState('');
   const [pendingStop, setPendingStop] = useState(null); // { lat, lng }
-  const [stopForm, setStopForm] = useState({ time: '', name: '', category: '', stay: '' });
+  const [stopForm, setStopForm] = useState(DEFAULT_STOP_FORM);
+
+  const openStopConfirm = (lat, lng, defaultName) => {
+    setPendingStop({ lat, lng });
+    setStopForm({ ...DEFAULT_STOP_FORM, name: defaultName });
+  };
 
   useEffect(() => {
     setSdkError(false);
     mapInstanceRef.current = null;
+    sdkRef.current = null;
+
     if (activeProvider === 'kakao' && KAKAO_MAP_KEY && mapContainerRef.current) {
       let cancelled = false;
       loadKakaoMaps(KAKAO_MAP_KEY)
@@ -40,19 +51,19 @@ export default function MapScreen() {
             level: 6,
           });
           mapInstanceRef.current = map;
+          sdkRef.current = { type: 'kakao', kakao, map };
 
           if (trip?.destination && kakao.maps.services) {
             const geocoder = new kakao.maps.services.Geocoder();
             geocoder.addressSearch(trip.destination, (results, status) => {
               if (status === kakao.maps.services.Status.OK && results[0]) {
-                const coords = new kakao.maps.LatLng(results[0].y, results[0].x);
-                map.setCenter(coords);
+                map.setCenter(new kakao.maps.LatLng(results[0].y, results[0].x));
               }
             });
           }
 
           kakao.maps.event.addListener(map, 'click', (e) => {
-            setPendingStop({ lat: e.latLng.getLat(), lng: e.latLng.getLng() });
+            openStopConfirm(e.latLng.getLat(), e.latLng.getLng(), `지도에서 선택한 장소 (${e.latLng.getLat().toFixed(5)}, ${e.latLng.getLng().toFixed(5)})`);
           });
         })
         .catch(() => !cancelled && setSdkError(true));
@@ -71,6 +82,7 @@ export default function MapScreen() {
             zoom: 12,
           });
           mapInstanceRef.current = map;
+          sdkRef.current = { type: 'naver', naver, map };
 
           if (trip?.destination && naver.maps.Service) {
             naver.maps.Service.geocode({ query: trip.destination }, (status, response) => {
@@ -82,7 +94,7 @@ export default function MapScreen() {
           }
 
           naver.maps.Event.addListener(map, 'click', (e) => {
-            setPendingStop({ lat: e.coord.lat(), lng: e.coord.lng() });
+            openStopConfirm(e.coord.lat(), e.coord.lng(), `지도에서 선택한 장소 (${e.coord.lat().toFixed(5)}, ${e.coord.lng().toFixed(5)})`);
           });
         })
         .catch(() => !cancelled && setSdkError(true));
@@ -99,11 +111,12 @@ export default function MapScreen() {
           const map = new google.maps.Map(mapContainerRef.current, {
             center: DEFAULT_CENTER,
             zoom: 12,
-            gestureHandling: 'greedy', // pan/zoom with one finger or plain scroll, no ctrl/two-finger requirement
+            gestureHandling: 'greedy',
             mapTypeControl: false,
             streetViewControl: false,
           });
           mapInstanceRef.current = map;
+          sdkRef.current = { type: 'google', google, map };
 
           if (trip?.destination) {
             new google.maps.Geocoder().geocode({ address: trip.destination }, (results, status) => {
@@ -114,7 +127,7 @@ export default function MapScreen() {
           }
 
           map.addListener('click', (e) => {
-            setPendingStop({ lat: e.latLng.lat(), lng: e.latLng.lng() });
+            openStopConfirm(e.latLng.lat(), e.latLng.lng(), `지도에서 선택한 장소 (${e.latLng.lat().toFixed(5)}, ${e.latLng.lng().toFixed(5)})`);
           });
         })
         .catch(() => !cancelled && setSdkError(true));
@@ -122,13 +135,58 @@ export default function MapScreen() {
         cancelled = true;
       };
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeProvider, trip?.destination]);
 
-  useEffect(() => {
-    if (pendingStop) {
-      setStopForm({ time: '', name: `지도에서 선택한 장소 (${pendingStop.lat.toFixed(5)}, ${pendingStop.lng.toFixed(5)})`, category: '', stay: '' });
+  const handleSearch = () => {
+    const query = searchText.trim();
+    if (!query || !sdkRef.current) return;
+    const { type, map } = sdkRef.current;
+
+    if (type === 'kakao') {
+      const { kakao } = sdkRef.current;
+      if (!kakao.maps.services) return;
+      new kakao.maps.services.Geocoder().addressSearch(query, (results, status) => {
+        if (status === kakao.maps.services.Status.OK && results[0]) {
+          const lat = Number(results[0].y);
+          const lng = Number(results[0].x);
+          map.setCenter(new kakao.maps.LatLng(lat, lng));
+          map.setLevel(3);
+          openStopConfirm(lat, lng, query);
+        } else {
+          showToast('검색 결과를 찾지 못했어요');
+        }
+      });
+    } else if (type === 'naver') {
+      const { naver } = sdkRef.current;
+      if (!naver.maps.Service) return;
+      naver.maps.Service.geocode({ query }, (status, response) => {
+        if (status === naver.maps.Service.Status.OK && response.v2.addresses[0]) {
+          const addr = response.v2.addresses[0];
+          const lat = Number(addr.y);
+          const lng = Number(addr.x);
+          map.setCenter(new naver.maps.LatLng(lat, lng));
+          map.setZoom(17);
+          openStopConfirm(lat, lng, query);
+        } else {
+          showToast('검색 결과를 찾지 못했어요');
+        }
+      });
+    } else if (type === 'google') {
+      const { google } = sdkRef.current;
+      new google.maps.Geocoder().geocode({ address: query }, (results, status) => {
+        if (status === 'OK' && results[0]) {
+          const lat = results[0].geometry.location.lat();
+          const lng = results[0].geometry.location.lng();
+          map.setCenter(results[0].geometry.location);
+          map.setZoom(17);
+          openStopConfirm(lat, lng, query);
+        } else {
+          showToast('검색 결과를 찾지 못했어요');
+        }
+      });
     }
-  }, [pendingStop]);
+  };
 
   const addPendingStop = () => {
     if (!trip || !stopForm.name.trim()) return;
@@ -210,6 +268,47 @@ export default function MapScreen() {
         })}
       </div>
 
+      {!providerKeyMissing && !sdkError && !useIframeFallback && (
+        <div style={{ position: 'absolute', top: 106, left: 20, right: 20, display: 'flex', gap: 6, zIndex: 10 }}>
+          <input
+            type="text"
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+            placeholder="장소 이름으로 검색"
+            style={{
+              flex: 1,
+              border: 'none',
+              outline: 'none',
+              background: '#fff',
+              borderRadius: 99,
+              padding: '10px 16px',
+              fontSize: 12,
+              boxShadow: '4px 4px 8px rgba(27,43,75,0.12)',
+              boxSizing: 'border-box',
+            }}
+          />
+          <div
+            onClick={handleSearch}
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 18,
+              background: 'var(--navy)',
+              color: '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              cursor: 'pointer',
+              fontSize: 14,
+            }}
+          >
+            🔍
+          </div>
+        </div>
+      )}
+
       {useIframeFallback && trip && (
         <iframe
           title="Google Map"
@@ -238,7 +337,7 @@ export default function MapScreen() {
               zIndex: 10,
             }}
           >
-            지도를 탭하면 그 위치를 일정에 추가할 수 있어요
+            지도를 탭하거나 검색해서 일정에 장소를 추가하세요
           </div>
         </>
       )}
@@ -277,6 +376,8 @@ export default function MapScreen() {
               padding: '20px 20px 34px',
               zIndex: 41,
               boxShadow: '0 -10px 26px rgba(27,43,75,0.2)',
+              maxHeight: '80%',
+              overflowY: 'auto',
             }}
           >
             <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)', marginBottom: 14 }}>일정에 장소 추가</div>
@@ -289,25 +390,18 @@ export default function MapScreen() {
             />
             <input
               type="text"
-              value={stopForm.time}
-              onChange={(e) => setStopForm((f) => ({ ...f, time: e.target.value }))}
-              placeholder="시간 (예: 09:00)"
-              style={{ width: '100%', boxSizing: 'border-box', border: 'none', outline: 'none', background: 'var(--bg)', borderRadius: 14, padding: '12px 14px', fontSize: 14, marginBottom: 10 }}
-            />
-            <input
-              type="text"
               value={stopForm.category}
               onChange={(e) => setStopForm((f) => ({ ...f, category: e.target.value }))}
               placeholder="분류 (예: 식당)"
               style={{ width: '100%', boxSizing: 'border-box', border: 'none', outline: 'none', background: 'var(--bg)', borderRadius: 14, padding: '12px 14px', fontSize: 14, marginBottom: 10 }}
             />
-            <input
-              type="text"
-              value={stopForm.stay}
-              onChange={(e) => setStopForm((f) => ({ ...f, stay: e.target.value }))}
-              placeholder="체류시간 (예: 1시간)"
-              style={{ width: '100%', boxSizing: 'border-box', border: 'none', outline: 'none', background: 'var(--bg)', borderRadius: 14, padding: '12px 14px', fontSize: 14, marginBottom: 16 }}
+
+            <TimeStaySection
+              time={stopForm.time}
+              stay={stopForm.stay}
+              onChange={({ time, stay }) => setStopForm((f) => ({ ...f, time, stay }))}
             />
+
             <div style={{ display: 'flex', gap: 8 }}>
               <div
                 onClick={() => setPendingStop(null)}
