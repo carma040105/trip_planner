@@ -69,7 +69,7 @@ export default function Home() {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {data.trips.map((t, i) => {
-            const stopCount = (t.days || []).reduce((n, d) => n + d.length, 0);
+            const stopCount = (t.days || []).reduce((n, d) => n + (d.stops?.length || 0), 0);
             const menuOpen = openMenuTripId === t.id;
             const memberCount = (t.memberIds || []).length;
             const iOwn = isOwner(t, uid);
