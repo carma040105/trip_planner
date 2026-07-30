@@ -3,12 +3,8 @@ import { useTravel } from '../store/TravelContext.jsx';
 import { tripTypeKey } from '../lib/mapProviders';
 import StopMapPreview from '../components/StopMapPreview.jsx';
 
-const BLANK_STOP = { time: '', name: '', category: '', stay: '' };
-
 export default function Itinerary() {
   const { data, updateData, selectedTripId, selectedDay, setSelectedDay, setScreen } = useTravel();
-  const [showNewStop, setShowNewStop] = useState(false);
-  const [stopForm, setStopForm] = useState(BLANK_STOP);
   const [previewStop, setPreviewStop] = useState(null);
 
   const trip = data.trips.find((t) => t.id === selectedTripId);
@@ -35,18 +31,6 @@ export default function Itinerary() {
     }));
   };
 
-  const addStop = () => {
-    if (!stopForm.name.trim()) return;
-    updateData((d) => ({
-      ...d,
-      trips: d.trips.map((t2) =>
-        t2.id === trip.id ? { ...t2, days: t2.days.map((day, di) => (di === selectedDay ? [...day, { ...stopForm }] : day)) } : t2
-      ),
-    }));
-    setStopForm(BLANK_STOP);
-    setShowNewStop(false);
-  };
-
   return (
     <div className="screen">
       <div className="scroll-area" style={{ padding: '70px 20px 24px' }}>
@@ -70,27 +54,9 @@ export default function Itinerary() {
               justifyContent: 'center',
               fontSize: 15,
               cursor: 'pointer',
-              marginRight: 8,
             }}
           >
             ✅
-          </div>
-          <div
-            onClick={() => setScreen('map')}
-            style={{
-              width: 34,
-              height: 34,
-              borderRadius: 17,
-              background: '#fff',
-              boxShadow: 'var(--shadow-flat)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 15,
-              cursor: 'pointer',
-            }}
-          >
-            🗺️
           </div>
         </div>
         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 24, marginBottom: 12 }}>{trip.dateLabel}</div>
@@ -143,58 +109,8 @@ export default function Itinerary() {
           ))}
         </div>
 
-        {showNewStop && (
-          <div className="card" style={{ padding: 14, marginTop: 12 }}>
-            <input
-              type="text"
-              value={stopForm.time}
-              onChange={(e) => setStopForm((f) => ({ ...f, time: e.target.value }))}
-              placeholder="시간 (예: 09:00)"
-              style={inputStyle}
-            />
-            <input
-              type="text"
-              value={stopForm.name}
-              onChange={(e) => setStopForm((f) => ({ ...f, name: e.target.value }))}
-              placeholder="장소 이름"
-              style={inputStyle}
-            />
-            <input
-              type="text"
-              value={stopForm.category}
-              onChange={(e) => setStopForm((f) => ({ ...f, category: e.target.value }))}
-              placeholder="분류 (예: 식당)"
-              style={inputStyle}
-            />
-            <input
-              type="text"
-              value={stopForm.stay}
-              onChange={(e) => setStopForm((f) => ({ ...f, stay: e.target.value }))}
-              placeholder="체류시간 (예: 1시간)"
-              style={{ ...inputStyle, marginBottom: 10 }}
-            />
-            <div style={{ display: 'flex', gap: 8 }}>
-              <div
-                onClick={() => {
-                  setShowNewStop(false);
-                  setStopForm(BLANK_STOP);
-                }}
-                style={{ flex: 1, textAlign: 'center', padding: 11, borderRadius: 12, background: 'var(--bg)', color: 'var(--text-muted)', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
-              >
-                취소
-              </div>
-              <div
-                onClick={addStop}
-                style={{ flex: 1, textAlign: 'center', padding: 11, borderRadius: 12, background: 'var(--coral)', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
-              >
-                추가
-              </div>
-            </div>
-          </div>
-        )}
-
         <div
-          onClick={() => setShowNewStop(true)}
+          onClick={() => setScreen('map')}
           style={{
             marginTop: 12,
             border: '1.5px dashed var(--coral)',
@@ -216,15 +132,3 @@ export default function Itinerary() {
     </div>
   );
 }
-
-const inputStyle = {
-  width: '100%',
-  border: 'none',
-  outline: 'none',
-  background: 'var(--bg)',
-  borderRadius: 12,
-  padding: '10px 12px',
-  fontSize: 13,
-  marginBottom: 8,
-  boxSizing: 'border-box',
-};
