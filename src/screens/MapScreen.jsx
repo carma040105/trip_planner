@@ -51,6 +51,46 @@ export default function MapScreen() {
     setStopForm({ ...DEFAULT_STOP_FORM, name: defaultName });
   };
 
+  // Only fills in the auto-detected place/address name if the user hasn't
+  // already typed something themselves in the meantime.
+  const fillAutoName = (name) => {
+    if (!name) return;
+    setStopForm((f) => (f.name === '' ? { ...f, name } : f));
+  };
+
+  const reverseGeocodeKakao = (kakao, lat, lng) => {
+    if (!kakao.maps.services) return;
+    new kakao.maps.services.Geocoder().coord2Address(lng, lat, (result, status) => {
+      if (status === kakao.maps.services.Status.OK && result[0]) {
+        fillAutoName(result[0].road_address?.address_name || result[0].address?.address_name);
+      }
+    });
+  };
+
+  const reverseGeocodeNaver = (naver, coord) => {
+    if (!naver.maps.Service) return;
+    naver.maps.Service.reverseGeocode(
+      { coords: coord, orders: [naver.maps.Service.OrderType.ROAD_ADDR, naver.maps.Service.OrderType.ADDR].join(',') },
+      (status, response) => {
+        if (status !== naver.maps.Service.Status.OK) return;
+        const result = response.v2.results?.[0];
+        if (!result) return;
+        const region = result.region;
+        const regionName = [region?.area1?.name, region?.area2?.name, region?.area3?.name].filter(Boolean).join(' ');
+        const landName = result.land?.name || [result.land?.number1, result.land?.number2].filter(Boolean).join('-');
+        fillAutoName([regionName, landName].filter(Boolean).join(' '));
+      }
+    );
+  };
+
+  const reverseGeocodeGoogle = (google, lat, lng) => {
+    new google.maps.Geocoder().geocode({ location: { lat, lng } }, (results, status) => {
+      if (status === 'OK' && results[0]) {
+        fillAutoName(results[0].formatted_address);
+      }
+    });
+  };
+
   useEffect(() => {
     setSdkError(false);
     mapInstanceRef.current = null;
@@ -79,7 +119,10 @@ export default function MapScreen() {
 
           kakao.maps.event.addListener(map, 'click', (e) => {
             if (!editable && !proposeOnly) return;
-            openStopConfirm(e.latLng.getLat(), e.latLng.getLng(), `지도에서 선택한 장소 (${e.latLng.getLat().toFixed(5)}, ${e.latLng.getLng().toFixed(5)})`);
+            const lat = e.latLng.getLat();
+            const lng = e.latLng.getLng();
+            openStopConfirm(lat, lng, '');
+            reverseGeocodeKakao(kakao, lat, lng);
           });
         })
         .catch(() => !cancelled && setSdkError(true));
@@ -111,7 +154,8 @@ export default function MapScreen() {
 
           naver.maps.Event.addListener(map, 'click', (e) => {
             if (!editable && !proposeOnly) return;
-            openStopConfirm(e.coord.lat(), e.coord.lng(), `지도에서 선택한 장소 (${e.coord.lat().toFixed(5)}, ${e.coord.lng().toFixed(5)})`);
+            openStopConfirm(e.coord.lat(), e.coord.lng(), '');
+            reverseGeocodeNaver(naver, e.coord);
           });
         })
         .catch(() => !cancelled && setSdkError(true));
@@ -145,7 +189,10 @@ export default function MapScreen() {
 
           map.addListener('click', (e) => {
             if (!editable && !proposeOnly) return;
-            openStopConfirm(e.latLng.lat(), e.latLng.lng(), `지도에서 선택한 장소 (${e.latLng.lat().toFixed(5)}, ${e.latLng.lng().toFixed(5)})`);
+            const lat = e.latLng.lat();
+            const lng = e.latLng.lng();
+            openStopConfirm(lat, lng, '');
+            reverseGeocodeGoogle(google, lat, lng);
           });
         })
         .catch(() => !cancelled && setSdkError(true));
@@ -423,7 +470,7 @@ export default function MapScreen() {
               type="text"
               value={stopForm.name}
               onChange={(e) => setStopForm((f) => ({ ...f, name: e.target.value }))}
-              placeholder="장소 이름"
+              placeholder="장소 이름 (자동으로 채워지면 직접 수정 가능)"
               style={{ width: '100%', boxSizing: 'border-box', border: 'none', outline: 'none', background: 'var(--bg)', borderRadius: 14, padding: '12px 14px', fontSize: 14, marginBottom: 10 }}
             />
             <input
