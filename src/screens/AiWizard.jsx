@@ -36,7 +36,7 @@ export default function AiWizard() {
       ...t,
       days: t.days.map((day, di) =>
         di === 0
-          ? [...day, { id: crypto.randomUUID(), time: '-', name: 'AI 추천 일정', category: 'AI', stay: lastAssistant.text.slice(0, 60) + '…', assigneeId: null }]
+          ? { stops: [...day.stops, { id: crypto.randomUUID(), time: '-', name: 'AI 추천 일정', category: 'AI', stay: lastAssistant.text.slice(0, 60) + '…', assigneeId: null }] }
           : day
       ),
     }));
