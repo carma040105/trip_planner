@@ -5,8 +5,9 @@ import { resizeImageFile } from '../lib/imageUtils';
 const BLANK = { destination: '', dateLabel: '', country: 'overseas', transport: null, nights: 3, coverImage: null };
 
 export default function NewTripSheet({ onClose }) {
-  const { data, updateData, openTrip } = useTravel();
+  const { createTrip, openTrip } = useTravel();
   const [form, setForm] = useState(BLANK);
+  const [busy, setBusy] = useState(false);
   const photoInputRef = useRef(null);
 
   const setCountry = (country) =>
@@ -24,26 +25,26 @@ export default function NewTripSheet({ onClose }) {
     }
   };
 
-  const createTrip = () => {
-    if (!form.destination.trim()) return;
-    const id = 't' + Date.now();
+  const submit = async () => {
+    if (!form.destination.trim() || busy) return;
+    setBusy(true);
     const days = Array.from({ length: form.nights + 1 }, () => []);
-    const trip = {
-      id,
-      ownerId: data.currentAccountId,
-      destination: form.destination,
-      dateLabel: form.dateLabel || '날짜 미정',
-      country: form.country,
-      transport: form.transport,
-      private: true,
-      days,
-      checklist: [],
-      coverImage: form.coverImage,
-    };
-    updateData((d) => ({ ...d, trips: [...d.trips, trip], lastTripId: id }));
-    setForm(BLANK);
-    onClose();
-    openTrip(id);
+    try {
+      const id = await createTrip({
+        destination: form.destination,
+        dateLabel: form.dateLabel || '날짜 미정',
+        country: form.country,
+        transport: form.transport,
+        days,
+        checklist: [],
+        coverImage: form.coverImage,
+      });
+      setForm(BLANK);
+      onClose();
+      if (id) openTrip(id);
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -190,8 +191,8 @@ export default function NewTripSheet({ onClose }) {
           </div>
         </div>
 
-        <button className="btn-primary" onClick={createTrip}>
-          여행 만들기
+        <button className="btn-primary" onClick={submit} disabled={busy}>
+          {busy ? '만드는 중…' : '여행 만들기'}
         </button>
       </div>
     </>

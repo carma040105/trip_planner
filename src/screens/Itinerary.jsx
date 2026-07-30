@@ -1,13 +1,47 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { collection, deleteDoc, doc, onSnapshot, orderBy, query, updateDoc } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 import { useTravel } from '../store/TravelContext.jsx';
+import { useAuth } from '../store/AuthContext.jsx';
 import { tripTypeKey } from '../lib/mapProviders';
+import { canEditItinerary, canManageMembers, canPropose, isOwner } from '../lib/permissions';
+import { usePresence, useEditingLock } from '../lib/presence';
+import { logActivity } from '../lib/activity';
+import { notifyUser } from '../lib/notifications';
 import StopMapPreview from '../components/StopMapPreview.jsx';
+import ShareSheet from '../components/ShareSheet.jsx';
+import ActivityFeed from '../components/ActivityFeed.jsx';
+import CommentSheet from '../components/CommentSheet.jsx';
+import { AssigneeBadge, AssigneeRow } from '../components/AssigneePicker.jsx';
 
 export default function Itinerary() {
-  const { data, updateData, selectedTripId, selectedDay, setSelectedDay, setScreen } = useTravel();
+  const { data, updateTrip, members, selectedTripId, selectedDay, setSelectedDay, setScreen, showToast } = useTravel();
+  const { uid, profile } = useAuth();
   const [previewStop, setPreviewStop] = useState(null);
+  const [showShare, setShowShare] = useState(false);
+  const [showActivity, setShowActivity] = useState(false);
+  const [commentStop, setCommentStop] = useState(null);
+  const [assigningKey, setAssigningKey] = useState(null);
+  const [comments, setComments] = useState([]);
+  const [proposals, setProposals] = useState([]);
 
   const trip = data.trips.find((t) => t.id === selectedTripId);
+  const myName = profile?.name || '';
+  const onlineIds = usePresence(selectedTripId, uid, myName);
+  const locks = useEditingLock(selectedTripId, null, uid, myName);
+
+  useEffect(() => {
+    if (!selectedTripId) return;
+    const q = query(collection(db, 'trips', selectedTripId, 'comments'), orderBy('createdAt', 'asc'));
+    return onSnapshot(q, (snap) => setComments(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
+  }, [selectedTripId]);
+
+  useEffect(() => {
+    if (!selectedTripId) return;
+    return onSnapshot(collection(db, 'trips', selectedTripId, 'proposals'), (snap) =>
+      setProposals(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+    );
+  }, [selectedTripId]);
 
   if (!trip) {
     return (
@@ -17,49 +51,104 @@ export default function Itinerary() {
     );
   }
 
+  const myMember = members.find((m) => m.uid === uid);
+  const editable = canEditItinerary(trip, myMember, uid);
+  const proposeOnly = !editable && canPropose(trip, myMember, uid);
+  const iOwn = canManageMembers(trip, uid);
+
   const dayStops = trip.days[selectedDay] || [];
-  const activeProvider = data.mapPrefs[tripTypeKey(trip)] || 'google';
+  const activeProvider = (profile?.mapPrefs || {})[tripTypeKey(trip)] || 'google';
+  const commentCount = (stopId) => comments.filter((c) => c.targetKey === stopId).length;
 
   const removeStop = (idx) => {
-    updateData((d) => ({
-      ...d,
-      trips: d.trips.map((t2) =>
-        t2.id === trip.id
-          ? { ...t2, days: t2.days.map((day, di) => (di === selectedDay ? day.filter((_, i2) => i2 !== idx) : day)) }
-          : t2
-      ),
+    if (!editable) return;
+    const stop = dayStops[idx];
+    updateTrip(trip.id, (t) => ({
+      ...t,
+      days: t.days.map((day, di) => (di === selectedDay ? day.filter((_, i2) => i2 !== idx) : day)),
     }));
+    logActivity(trip.id, { authorId: uid, authorName: myName, type: 'stop_remove', message: `"${stop.name}" 일정을 삭제했어요` });
+  };
+
+  const setStopAssignee = (idx, assigneeId) => {
+    if (!editable) return;
+    const stop = dayStops[idx];
+    updateTrip(trip.id, (t) => ({
+      ...t,
+      days: t.days.map((day, di) => (di === selectedDay ? day.map((s, i2) => (i2 === idx ? { ...s, assigneeId } : s)) : day)),
+    }));
+    setAssigningKey(null);
+    if (assigneeId && assigneeId !== uid) {
+      notifyUser(assigneeId, { type: 'assigned', tripId: trip.id, message: `${myName}님이 "${stop.name}" 담당자로 지정했어요` });
+    }
+  };
+
+  const respondProposal = async (proposal, approve) => {
+    if (!iOwn) return;
+    if (approve) {
+      updateTrip(trip.id, (t) => ({
+        ...t,
+        days: t.days.map((day, di) => (di === proposal.dayIndex ? [...day, proposal.stop] : day)),
+      }));
+      logActivity(trip.id, { authorId: uid, authorName: myName, type: 'proposal_approved', message: `"${proposal.stop.name}" 제안을 승인했어요` });
+      if (proposal.proposedBy !== uid) {
+        notifyUser(proposal.proposedBy, { type: 'proposal', tripId: trip.id, message: `제안한 "${proposal.stop.name}"이 승인됐어요` });
+      }
+    } else {
+      logActivity(trip.id, { authorId: uid, authorName: myName, type: 'proposal_rejected', message: `"${proposal.stop.name}" 제안을 거절했어요` });
+      if (proposal.proposedBy !== uid) {
+        notifyUser(proposal.proposedBy, { type: 'proposal', tripId: trip.id, message: `제안한 "${proposal.stop.name}"이 거절됐어요` });
+      }
+    }
+    await deleteDoc(doc(db, 'trips', trip.id, 'proposals', proposal.id));
   };
 
   return (
     <div className="screen">
       <div className="scroll-area" style={{ padding: '70px 20px 24px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
           <div onClick={() => setScreen('home')} style={{ padding: 4, cursor: 'pointer' }}>
             <svg width="10" height="18" viewBox="0 0 10 18">
               <path d="M8.5 1.5L2 9l6.5 7.5" stroke="var(--navy)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
             </svg>
           </div>
           <div style={{ fontSize: 19, fontWeight: 800, color: 'var(--navy)', flex: 1 }}>{trip.destination}</div>
-          <div
-            onClick={() => setScreen('checklist')}
-            style={{
-              width: 34,
-              height: 34,
-              borderRadius: 17,
-              background: '#fff',
-              boxShadow: 'var(--shadow-flat)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 15,
-              cursor: 'pointer',
-            }}
-          >
-            ✅
-          </div>
+          <HeaderIconButton emoji="📋" onClick={() => setShowActivity(true)} />
+          <HeaderIconButton emoji="✅" onClick={() => setScreen('checklist')} />
+          <HeaderIconButton emoji="👥" onClick={() => setShowShare(true)} />
         </div>
-        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 24, marginBottom: 12 }}>{trip.dateLabel}</div>
+
+        <div style={{ display: 'flex', alignItems: 'center', marginLeft: 24, marginBottom: 12 }}>
+          <div style={{ display: 'flex' }}>
+            {members.slice(0, 6).map((m, i) => (
+              <div
+                key={m.uid}
+                title={m.name}
+                style={{
+                  width: 24,
+                  height: 24,
+                  borderRadius: 12,
+                  background: isOwner(trip, m.uid) ? 'var(--coral)' : 'var(--navy)',
+                  color: '#fff',
+                  fontSize: 10,
+                  fontWeight: 800,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginLeft: i === 0 ? 0 : -7,
+                  border: '2px solid #fff',
+                  position: 'relative',
+                }}
+              >
+                {(m.name || '?')[0]}
+                {onlineIds.includes(m.uid) && (
+                  <div style={{ position: 'absolute', bottom: -1, right: -1, width: 7, height: 7, borderRadius: 4, background: '#3ec97a', border: '1.5px solid #fff' }} />
+                )}
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8 }}>{trip.dateLabel}</div>
+        </div>
 
         <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 12 }}>
           {trip.days.map((_, i) => (
@@ -74,6 +163,38 @@ export default function Itinerary() {
           ))}
         </div>
 
+        {proposals.length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--coral)', marginBottom: 8 }}>💡 제안된 일정 ({proposals.length})</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {proposals.map((p) => (
+                <div key={p.id} className="card" style={{ padding: '10px 12px', border: '1.5px dashed var(--coral)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--navy)' }}>
+                        Day {p.dayIndex + 1} · {p.stop.name}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{p.proposedByName}님 제안 · {p.stop.time}</div>
+                    </div>
+                    {iOwn ? (
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <div onClick={() => respondProposal(p, true)} style={{ padding: '6px 10px', borderRadius: 10, background: 'var(--coral)', color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                          승인
+                        </div>
+                        <div onClick={() => respondProposal(p, false)} style={{ padding: '6px 10px', borderRadius: 10, background: 'var(--bg)', color: 'var(--text-muted)', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                          거절
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700 }}>검토 대기</div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {dayStops.length === 0 && (
           <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 13, padding: '30px 0' }}>
             이 날에는 아직 일정이 없어요.
@@ -81,54 +202,92 @@ export default function Itinerary() {
         )}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {dayStops.map((s, idx) => (
-            <div
-              key={idx}
-              className="card"
-              onClick={() => setPreviewStop(s)}
-              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', cursor: 'pointer' }}
-            >
-              <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--coral)', width: 44, flexShrink: 0 }}>{s.time}</div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--navy)' }}>{s.name}</div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                  {s.category} · {s.stay}
+          {dayStops.map((s, idx) => {
+            const assignee = members.find((m) => m.uid === s.assigneeId);
+            const lockName = s.id ? locks[s.id] : null;
+            const key = s.id || idx;
+            return (
+              <div key={key} className="card" style={{ padding: '12px 14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div onClick={() => setPreviewStop(s)} style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, cursor: 'pointer' }}>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--coral)', width: 44, flexShrink: 0 }}>{s.time}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--navy)' }}>{s.name}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                        {s.category} · {s.stay}
+                      </div>
+                      {lockName && <div style={{ fontSize: 10, color: 'var(--coral)', fontWeight: 700, marginTop: 2 }}>✏️ {lockName}님이 수정 중</div>}
+                    </div>
+                  </div>
+                  <div
+                    onClick={() => s.id && setCommentStop(s)}
+                    style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0, cursor: s.id ? 'pointer' : 'default', display: 'flex', alignItems: 'center', gap: 2 }}
+                  >
+                    💬 {s.id ? commentCount(s.id) : 0}
+                  </div>
+                  <AssigneeBadge name={assignee?.name} onClick={editable ? () => setAssigningKey(assigningKey === key ? null : key) : undefined} />
+                  {editable && (
+                    <div
+                      onClick={() => removeStop(idx)}
+                      style={{ fontSize: 14, color: '#c4cad6', padding: 4, cursor: 'pointer', flexShrink: 0 }}
+                    >
+                      ✕
+                    </div>
+                  )}
                 </div>
+                {assigningKey === key && <AssigneeRow members={members} value={s.assigneeId} onSelect={(id) => setStopAssignee(idx, id)} />}
               </div>
-              <div style={{ fontSize: 15, flexShrink: 0 }}>🧭</div>
-              <div
-                onClick={(e) => {
-                  e.stopPropagation();
-                  removeStop(idx);
-                }}
-                style={{ fontSize: 14, color: '#c4cad6', padding: 4, cursor: 'pointer', flexShrink: 0 }}
-              >
-                ✕
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
-        <div
-          onClick={() => setScreen('map')}
-          style={{
-            marginTop: 12,
-            border: '1.5px dashed var(--coral)',
-            borderRadius: 16,
-            padding: 13,
-            textAlign: 'center',
-            color: 'var(--coral)',
-            fontSize: 14,
-            fontWeight: 700,
-            background: 'rgba(255,107,107,0.05)',
-            cursor: 'pointer',
-          }}
-        >
-          + 장소 추가
-        </div>
+        {(editable || proposeOnly) && (
+          <div
+            onClick={() => setScreen('map')}
+            style={{
+              marginTop: 12,
+              border: '1.5px dashed var(--coral)',
+              borderRadius: 16,
+              padding: 13,
+              textAlign: 'center',
+              color: 'var(--coral)',
+              fontSize: 14,
+              fontWeight: 700,
+              background: 'rgba(255,107,107,0.05)',
+              cursor: 'pointer',
+            }}
+          >
+            {editable ? '+ 장소 추가' : '+ 장소 제안하기'}
+          </div>
+        )}
       </div>
 
       {previewStop && <StopMapPreview stop={previewStop} provider={activeProvider} onClose={() => setPreviewStop(null)} />}
+      {showShare && <ShareSheet trip={trip} members={members} uid={uid} myName={myName} onClose={() => setShowShare(false)} showToast={showToast} />}
+      {showActivity && <ActivityFeed tripId={trip.id} onClose={() => setShowActivity(false)} />}
+      {commentStop && <CommentSheet tripId={trip.id} stop={commentStop} members={members} uid={uid} myName={myName} onClose={() => setCommentStop(null)} />}
+    </div>
+  );
+}
+
+function HeaderIconButton({ emoji, onClick }) {
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        width: 34,
+        height: 34,
+        borderRadius: 17,
+        background: '#fff',
+        boxShadow: 'var(--shadow-flat)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: 15,
+        cursor: 'pointer',
+      }}
+    >
+      {emoji}
     </div>
   );
 }

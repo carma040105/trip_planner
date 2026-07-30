@@ -1,8 +1,14 @@
 import { useState } from 'react';
 import { useTravel } from '../store/TravelContext.jsx';
+import { useAuth } from '../store/AuthContext.jsx';
+import { AssigneeBadge, AssigneeRow } from '../components/AssigneePicker.jsx';
+import { canEditChecklist } from '../lib/permissions';
+import { logActivity } from '../lib/activity';
+import { notifyUser } from '../lib/notifications';
 
 export default function Checklist() {
-  const { data, updateData, selectedTripId, setScreen } = useTravel();
+  const { data, updateTrip, members, selectedTripId, setScreen } = useTravel();
+  const { uid, profile } = useAuth();
   const trip = data.trips.find((t) => t.id === selectedTripId);
   const [newText, setNewText] = useState('');
   const [editingId, setEditingId] = useState(null);
@@ -17,37 +23,50 @@ export default function Checklist() {
     );
   }
 
+  const myMember = members.find((m) => m.uid === uid);
+  const editable = canEditChecklist(trip, myMember, uid);
+  const myName = profile?.name || '';
+
   const checklist = trip.checklist || [];
   const doneCount = checklist.filter((c) => c.done).length;
-  const accountById = (id) => data.accounts.find((a) => a.id === id);
+  const memberByUid = (id) => members.find((m) => m.uid === id);
 
-  const updateChecklist = (fn) => {
-    updateData((d) => ({
-      ...d,
-      trips: d.trips.map((t2) => (t2.id === trip.id ? { ...t2, checklist: fn(t2.checklist || []) } : t2)),
-    }));
-  };
+  const updateChecklist = (fn) => updateTrip(trip.id, (t) => ({ ...t, checklist: fn(t.checklist || []) }));
 
   const addItem = () => {
-    if (!newText.trim()) return;
-    updateChecklist((list) => [...list, { id: 'c' + Date.now(), text: newText.trim(), done: false, assigneeId: null }]);
+    if (!newText.trim() || !editable) return;
+    updateChecklist((list) => [...list, { id: crypto.randomUUID(), text: newText.trim(), done: false, assigneeId: null, doneBy: null, doneAt: null }]);
+    logActivity(trip.id, { authorId: uid, authorName: myName, type: 'checklist_add', message: `준비물 "${newText.trim()}"을 추가했어요` });
     setNewText('');
   };
 
-  const toggleItem = (id) => {
-    updateChecklist((list) => list.map((c) => (c.id === id ? { ...c, done: !c.done } : c)));
+  const toggleItem = (item) => {
+    if (!editable) return;
+    const nextDone = !item.done;
+    updateChecklist((list) =>
+      list.map((c) => (c.id === item.id ? { ...c, done: nextDone, doneBy: nextDone ? uid : null, doneAt: nextDone ? Date.now() : null } : c))
+    );
+    if (nextDone) {
+      logActivity(trip.id, { authorId: uid, authorName: myName, type: 'checklist_done', message: `"${item.text}" 완료했어요` });
+    }
   };
 
   const removeItem = (id) => {
+    if (!editable) return;
     updateChecklist((list) => list.filter((c) => c.id !== id));
   };
 
-  const setAssignee = (id, assigneeId) => {
-    updateChecklist((list) => list.map((c) => (c.id === id ? { ...c, assigneeId } : c)));
+  const setAssignee = (item, assigneeId) => {
+    if (!editable) return;
+    updateChecklist((list) => list.map((c) => (c.id === item.id ? { ...c, assigneeId } : c)));
     setAssigningId(null);
+    if (assigneeId && assigneeId !== uid) {
+      notifyUser(assigneeId, { type: 'assigned', tripId: trip.id, message: `${myName}님이 "${item.text}" 담당자로 지정했어요` });
+    }
   };
 
   const startEdit = (item) => {
+    if (!editable) return;
     setEditingId(item.id);
     setEditingText(item.text);
   };
@@ -83,12 +102,13 @@ export default function Checklist() {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {checklist.map((item) => {
-            const assignee = accountById(item.assigneeId);
+            const assignee = memberByUid(item.assigneeId);
+            const doneBy = memberByUid(item.doneBy);
             return (
               <div key={item.id} className="card" style={{ padding: '12px 14px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div
-                    onClick={() => toggleItem(item.id)}
+                    onClick={() => toggleItem(item)}
                     style={{
                       width: 22,
                       height: 22,
@@ -99,7 +119,7 @@ export default function Checklist() {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      cursor: 'pointer',
+                      cursor: editable ? 'pointer' : 'default',
                     }}
                   >
                     {item.done && (
@@ -129,116 +149,77 @@ export default function Checklist() {
                         fontWeight: 700,
                         color: item.done ? 'var(--text-muted)' : 'var(--navy)',
                         textDecoration: item.done ? 'line-through' : 'none',
-                        cursor: 'pointer',
+                        cursor: editable ? 'pointer' : 'default',
                       }}
                     >
                       {item.text}
                     </div>
                   )}
 
-                  <div
-                    onClick={() => setAssigningId(assigningId === item.id ? null : item.id)}
-                    style={{
-                      flexShrink: 0,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 5,
-                      padding: '4px 9px',
-                      borderRadius: 99,
-                      background: assignee ? 'var(--navy)' : 'var(--bg)',
-                      color: assignee ? '#fff' : 'var(--text-muted)',
-                      fontSize: 11,
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {assignee ? assignee.name : '담당자'}
-                  </div>
+                  <AssigneeBadge
+                    name={assignee?.name}
+                    onClick={editable ? () => setAssigningId(assigningId === item.id ? null : item.id) : undefined}
+                  />
 
-                  <div onClick={() => removeItem(item.id)} style={{ fontSize: 14, color: '#c4cad6', padding: 4, cursor: 'pointer' }}>
-                    ✕
-                  </div>
+                  {editable && (
+                    <div onClick={() => removeItem(item.id)} style={{ fontSize: 14, color: '#c4cad6', padding: 4, cursor: 'pointer' }}>
+                      ✕
+                    </div>
+                  )}
                 </div>
 
+                {item.done && doneBy && (
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6, marginLeft: 32 }}>✓ {doneBy.name}님이 완료</div>
+                )}
+
                 {assigningId === item.id && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border-soft)' }}>
-                    <div
-                      onClick={() => setAssignee(item.id, null)}
-                      style={{
-                        padding: '6px 12px',
-                        borderRadius: 99,
-                        fontSize: 11,
-                        fontWeight: 700,
-                        background: !item.assigneeId ? 'var(--coral)' : 'var(--bg)',
-                        color: !item.assigneeId ? '#fff' : 'var(--navy)',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      미정
-                    </div>
-                    {data.accounts.map((a) => (
-                      <div
-                        key={a.id}
-                        onClick={() => setAssignee(item.id, a.id)}
-                        style={{
-                          padding: '6px 12px',
-                          borderRadius: 99,
-                          fontSize: 11,
-                          fontWeight: 700,
-                          background: item.assigneeId === a.id ? 'var(--coral)' : 'var(--bg)',
-                          color: item.assigneeId === a.id ? '#fff' : 'var(--navy)',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        {a.name}
-                      </div>
-                    ))}
-                  </div>
+                  <AssigneeRow members={members} value={item.assigneeId} onSelect={(id) => setAssignee(item, id)} />
                 )}
               </div>
             );
           })}
         </div>
 
-        <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-          <input
-            type="text"
-            value={newText}
-            onChange={(e) => setNewText(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && addItem()}
-            placeholder="준비물 입력 (예: 여권)"
-            style={{
-              flex: 1,
-              minWidth: 0,
-              border: 'none',
-              outline: 'none',
-              background: '#fff',
-              borderRadius: 14,
-              padding: '12px 14px',
-              fontSize: 14,
-              boxShadow: 'var(--shadow-raised-sm)',
-              boxSizing: 'border-box',
-            }}
-          />
-          <div
-            onClick={addItem}
-            style={{
-              flexShrink: 0,
-              background: 'var(--coral)',
-              color: '#fff',
-              borderRadius: 14,
-              padding: '12px 18px',
-              fontSize: 14,
-              fontWeight: 800,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-            }}
-          >
-            추가
+        {editable && (
+          <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+            <input
+              type="text"
+              value={newText}
+              onChange={(e) => setNewText(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && addItem()}
+              placeholder="준비물 입력 (예: 여권)"
+              style={{
+                flex: 1,
+                minWidth: 0,
+                border: 'none',
+                outline: 'none',
+                background: '#fff',
+                borderRadius: 14,
+                padding: '12px 14px',
+                fontSize: 14,
+                boxShadow: 'var(--shadow-raised-sm)',
+                boxSizing: 'border-box',
+              }}
+            />
+            <div
+              onClick={addItem}
+              style={{
+                flexShrink: 0,
+                background: 'var(--coral)',
+                color: '#fff',
+                borderRadius: 14,
+                padding: '12px 18px',
+                fontSize: 14,
+                fontWeight: 800,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+              }}
+            >
+              추가
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

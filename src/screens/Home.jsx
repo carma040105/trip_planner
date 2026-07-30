@@ -1,8 +1,11 @@
 import { useRef, useState } from 'react';
 import { useTravel } from '../store/TravelContext.jsx';
+import { useAuth } from '../store/AuthContext.jsx';
 import { GRADIENTS } from '../data/defaultData';
 import { resizeImageFile } from '../lib/imageUtils';
+import { isOwner } from '../lib/permissions';
 import NewTripSheet from '../components/NewTripSheet.jsx';
+import NotificationBell from '../components/NotificationBell.jsx';
 
 function countryLabel(trip) {
   if (trip.country === 'overseas') return '🌍 해외';
@@ -10,27 +13,17 @@ function countryLabel(trip) {
 }
 
 export default function Home() {
-  const { data, updateData, openTrip } = useTravel();
+  const { data, updateTrip, deleteTrip, openTrip, tripsLoading } = useTravel();
+  const { uid, profile } = useAuth();
   const [openMenuTripId, setOpenMenuTripId] = useState(null);
   const [showNewTrip, setShowNewTrip] = useState(false);
   const photoInputRef = useRef(null);
   const photoTargetTripId = useRef(null);
 
-  const currentAccount = data.accounts.find((a) => a.id === data.currentAccountId) || data.accounts[0];
-  const visibleTrips = data.trips.filter((t) => t.ownerId === data.currentAccountId || t.private === false);
-
-  const togglePrivate = (e, trip) => {
-    e.stopPropagation();
-    updateData((d) => ({
-      ...d,
-      trips: d.trips.map((x) => (x.id === trip.id ? { ...x, private: !x.private } : x)),
-    }));
-    setOpenMenuTripId(null);
-  };
-
   const removeTrip = (e, trip) => {
     e.stopPropagation();
-    updateData((d) => ({ ...d, trips: d.trips.filter((x) => x.id !== trip.id) }));
+    if (!window.confirm('이 여행을 삭제할까요? 모든 참여자에게서 사라져요.')) return;
+    deleteTrip(trip.id);
     setOpenMenuTripId(null);
   };
 
@@ -48,7 +41,7 @@ export default function Home() {
     if (!file || !tripId) return;
     try {
       const dataUrl = await resizeImageFile(file);
-      updateData((d) => ({ ...d, trips: d.trips.map((x) => (x.id === tripId ? { ...x, coverImage: dataUrl } : x)) }));
+      updateTrip(tripId, (t) => ({ ...t, coverImage: dataUrl }));
     } catch {
       window.alert('사진을 처리하지 못했어요. 다른 사진으로 시도해주세요.');
     }
@@ -60,10 +53,13 @@ export default function Home() {
       <div className="scroll-area" style={{ padding: '70px 20px 20px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--navy)' }}>내 여행</div>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>{currentAccount.name} 님</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>{profile?.name || ''} 님</div>
+            <NotificationBell />
+          </div>
         </div>
 
-        {visibleTrips.length === 0 && (
+        {!tripsLoading && data.trips.length === 0 && (
           <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 13, padding: '60px 0' }}>
             아직 만든 여행이 없어요.
             <br />
@@ -72,9 +68,11 @@ export default function Home() {
         )}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {visibleTrips.map((t, i) => {
-            const stopCount = t.days.reduce((n, d) => n + d.length, 0);
+          {data.trips.map((t, i) => {
+            const stopCount = (t.days || []).reduce((n, d) => n + d.length, 0);
             const menuOpen = openMenuTripId === t.id;
+            const memberCount = (t.memberIds || []).length;
+            const iOwn = isOwner(t, uid);
             return (
               <div key={t.id} className="card" style={{ overflow: 'hidden', position: 'relative' }}>
                 <div
@@ -123,18 +121,14 @@ export default function Home() {
                     >
                       {t.coverImage ? '대표 사진 변경' : '대표 사진 추가'}
                     </div>
-                    <div
-                      onClick={(e) => togglePrivate(e, t)}
-                      style={{ padding: '9px 14px', fontSize: 12, fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', cursor: 'pointer' }}
-                    >
-                      {t.private ? '공유로 전환' : '비공개로 전환'}
-                    </div>
-                    <div
-                      onClick={(e) => removeTrip(e, t)}
-                      style={{ padding: '9px 14px', fontSize: 12, fontWeight: 700, color: '#ff9a9a', whiteSpace: 'nowrap', cursor: 'pointer' }}
-                    >
-                      삭제
-                    </div>
+                    {iOwn && (
+                      <div
+                        onClick={(e) => removeTrip(e, t)}
+                        style={{ padding: '9px 14px', fontSize: 12, fontWeight: 700, color: '#ff9a9a', whiteSpace: 'nowrap', cursor: 'pointer' }}
+                      >
+                        삭제
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -162,7 +156,7 @@ export default function Home() {
                         borderRadius: 99,
                       }}
                     >
-                      {t.private ? '🔒 비공개' : '👥 공유중'}
+                      {memberCount > 1 ? `👥 ${memberCount}명` : '🔒 나만'}
                     </div>
                   </div>
 

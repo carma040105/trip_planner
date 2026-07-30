@@ -1,21 +1,34 @@
 import { useEffect, useRef, useState } from 'react';
+import { serverTimestamp, addDoc, collection } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 import { useTravel } from '../store/TravelContext.jsx';
+import { useAuth } from '../store/AuthContext.jsx';
 import { PROVIDER_META } from '../data/defaultData';
 import { tripTypeKey, googleEmbedUrl } from '../lib/mapProviders';
 import { KAKAO_MAP_KEY, NAVER_MAP_CLIENT_ID, GOOGLE_MAPS_KEY } from '../lib/mapKeys';
 import { loadKakaoMaps, loadNaverMaps, loadGoogleMaps } from '../lib/mapSdkLoader';
+import { canEditItinerary, canPropose } from '../lib/permissions';
+import { useEditingLock } from '../lib/presence';
+import { logActivity } from '../lib/activity';
+import { notifyUser } from '../lib/notifications';
 import TimeStaySection from '../components/TimeStaySection.jsx';
+import { AssigneeRow } from '../components/AssigneePicker.jsx';
 
 const DEFAULT_CENTER = { lat: 37.5665, lng: 126.978 }; // Seoul, fallback when destination geocoding fails/unavailable
-const DEFAULT_STOP_FORM = { time: '09:00', name: '', category: '', stay: '1시간' };
+const DEFAULT_STOP_FORM = { time: '09:00', name: '', category: '', stay: '1시간', assigneeId: null };
 
 export default function MapScreen() {
-  const { data, updateData, selectedTripId, selectedDay, mapProviderOverride, setMapProviderOverride, setScreen, showToast } =
+  const { data, updateTrip, members, selectedTripId, selectedDay, mapProviderOverride, setMapProviderOverride, setScreen, showToast } =
     useTravel();
+  const { uid, profile } = useAuth();
   const trip = data.trips.find((t) => t.id === selectedTripId);
+  const myName = profile?.name || '';
+  const myMember = members.find((m) => m.uid === uid);
+  const editable = canEditItinerary(trip, myMember, uid);
+  const proposeOnly = !editable && canPropose(trip, myMember, uid);
 
   const typeKey = tripTypeKey(trip);
-  const activeProvider = mapProviderOverride || data.mapPrefs[typeKey] || 'google';
+  const activeProvider = mapProviderOverride || (profile?.mapPrefs || {})[typeKey] || 'google';
   const meta = PROVIDER_META[activeProvider];
   const providerKeyMissing =
     (activeProvider === 'kakao' && !KAKAO_MAP_KEY) ||
@@ -30,6 +43,8 @@ export default function MapScreen() {
   const [searchText, setSearchText] = useState('');
   const [pendingStop, setPendingStop] = useState(null); // { lat, lng }
   const [stopForm, setStopForm] = useState(DEFAULT_STOP_FORM);
+
+  useEditingLock(selectedTripId, pendingStop ? 'new-stop' : null, uid, myName);
 
   const openStopConfirm = (lat, lng, defaultName) => {
     setPendingStop({ lat, lng });
@@ -63,6 +78,7 @@ export default function MapScreen() {
           }
 
           kakao.maps.event.addListener(map, 'click', (e) => {
+            if (!editable && !proposeOnly) return;
             openStopConfirm(e.latLng.getLat(), e.latLng.getLng(), `지도에서 선택한 장소 (${e.latLng.getLat().toFixed(5)}, ${e.latLng.getLng().toFixed(5)})`);
           });
         })
@@ -94,6 +110,7 @@ export default function MapScreen() {
           }
 
           naver.maps.Event.addListener(map, 'click', (e) => {
+            if (!editable && !proposeOnly) return;
             openStopConfirm(e.coord.lat(), e.coord.lng(), `지도에서 선택한 장소 (${e.coord.lat().toFixed(5)}, ${e.coord.lng().toFixed(5)})`);
           });
         })
@@ -127,6 +144,7 @@ export default function MapScreen() {
           }
 
           map.addListener('click', (e) => {
+            if (!editable && !proposeOnly) return;
             openStopConfirm(e.latLng.lat(), e.latLng.lng(), `지도에서 선택한 장소 (${e.latLng.lat().toFixed(5)}, ${e.latLng.lng().toFixed(5)})`);
           });
         })
@@ -140,7 +158,7 @@ export default function MapScreen() {
 
   const handleSearch = () => {
     const query = searchText.trim();
-    if (!query || !sdkRef.current) return;
+    if (!query || !sdkRef.current || (!editable && !proposeOnly)) return;
     const { type, map } = sdkRef.current;
 
     if (type === 'kakao') {
@@ -188,17 +206,35 @@ export default function MapScreen() {
     }
   };
 
-  const addPendingStop = () => {
+  const addPendingStop = async () => {
     if (!trip || !stopForm.name.trim()) return;
-    const newStop = { ...stopForm, lat: pendingStop.lat, lng: pendingStop.lng };
-    updateData((d) => ({
-      ...d,
-      trips: d.trips.map((t2) =>
-        t2.id === trip.id ? { ...t2, days: t2.days.map((day, di) => (di === selectedDay ? [...day, newStop] : day)) } : t2
-      ),
-    }));
+    const newStop = { ...stopForm, id: crypto.randomUUID(), lat: pendingStop.lat, lng: pendingStop.lng };
+
+    if (editable) {
+      await updateTrip(trip.id, (t) => ({
+        ...t,
+        days: t.days.map((day, di) => (di === selectedDay ? [...day, newStop] : day)),
+      }));
+      await logActivity(trip.id, { authorId: uid, authorName: myName, type: 'stop_add', message: `"${newStop.name}" 일정을 추가했어요` });
+      if (newStop.assigneeId && newStop.assigneeId !== uid) {
+        notifyUser(newStop.assigneeId, { type: 'assigned', tripId: trip.id, message: `${myName}님이 "${newStop.name}" 담당자로 지정했어요` });
+      }
+      showToast('일정에 장소를 추가했어요');
+    } else if (proposeOnly) {
+      await addDoc(collection(db, 'trips', trip.id, 'proposals'), {
+        dayIndex: selectedDay,
+        stop: newStop,
+        proposedBy: uid,
+        proposedByName: myName,
+        createdAt: serverTimestamp(),
+      });
+      await logActivity(trip.id, { authorId: uid, authorName: myName, type: 'proposal', message: `"${newStop.name}" 일정을 제안했어요` });
+      if (trip.ownerId !== uid) {
+        notifyUser(trip.ownerId, { type: 'proposal', tripId: trip.id, message: `${myName}님이 "${newStop.name}"을 제안했어요` });
+      }
+      showToast('일정을 제안했어요. 소유자 승인을 기다려주세요');
+    }
     setPendingStop(null);
-    showToast('일정에 장소를 추가했어요');
   };
 
   return (
@@ -337,7 +373,7 @@ export default function MapScreen() {
               zIndex: 10,
             }}
           >
-            지도를 탭하거나 검색해서 일정에 장소를 추가하세요
+            {editable || proposeOnly ? '지도를 탭하거나 검색해서 일정에 장소를 추가하세요' : '뷰어 권한에서는 일정을 추가할 수 없어요'}
           </div>
         </>
       )}
@@ -380,7 +416,9 @@ export default function MapScreen() {
               overflowY: 'auto',
             }}
           >
-            <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)', marginBottom: 14 }}>일정에 장소 추가</div>
+            <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)', marginBottom: 14 }}>
+              {editable ? '일정에 장소 추가' : '일정 제안하기'}
+            </div>
             <input
               type="text"
               value={stopForm.name}
@@ -402,7 +440,14 @@ export default function MapScreen() {
               onChange={({ time, stay }) => setStopForm((f) => ({ ...f, time, stay }))}
             />
 
-            <div style={{ display: 'flex', gap: 8 }}>
+            {editable && (
+              <div style={{ marginBottom: 4 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--navy)', marginBottom: 4 }}>담당자</div>
+                <AssigneeRow members={members} value={stopForm.assigneeId} onSelect={(id) => setStopForm((f) => ({ ...f, assigneeId: id }))} />
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
               <div
                 onClick={() => setPendingStop(null)}
                 style={{ flex: 1, textAlign: 'center', padding: 14, borderRadius: 14, background: 'var(--bg)', color: 'var(--text-muted)', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}
@@ -410,7 +455,7 @@ export default function MapScreen() {
                 취소
               </div>
               <div onClick={addPendingStop} style={{ flex: 1, textAlign: 'center', padding: 14, borderRadius: 14, background: 'var(--coral)', color: '#fff', fontWeight: 800, fontSize: 14, cursor: 'pointer' }}>
-                추가
+                {editable ? '추가' : '제안하기'}
               </div>
             </div>
           </div>

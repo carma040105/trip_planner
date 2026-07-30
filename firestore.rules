@@ -1,0 +1,109 @@
+rules_version = '2';
+
+// MyWay collaboration rules — Phase 1 MVP.
+// Paste this into Firebase Console -> Firestore Database -> Rules, then Publish.
+//
+// Known simplification: "custom" role's granular permission flags
+// (editItinerary / editChecklist / editNotes / comment) are enforced in the
+// app UI, not re-checked field-by-field here — anyone with role "editor" or
+// "custom" can write to the trip document. Treat this as good-faith MVP
+// protection, not a hardened multi-tenant security boundary; a real audit
+// pass is recommended before trusting it with sensitive data.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isSelf(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    match /users/{uid} {
+      allow read: if isSignedIn();
+      allow create: if isSelf(uid);
+      allow update: if isSelf(uid);
+      allow delete: if false;
+
+      match /notifications/{notifId} {
+        allow read, update, delete: if isSelf(uid);
+        // other members write notifications into your inbox (invite, assigned, mention, etc.)
+        allow create: if isSignedIn();
+      }
+    }
+
+    match /trips/{tripId} {
+      function isTripOwner() {
+        return isSignedIn() && resource.data.ownerId == request.auth.uid;
+      }
+      function isMember() {
+        return isSignedIn() &&
+          exists(/databases/$(database)/documents/trips/$(tripId)/members/$(request.auth.uid));
+      }
+      function memberRole() {
+        return get(/databases/$(database)/documents/trips/$(tripId)/members/$(request.auth.uid)).data.role;
+      }
+      function canEditTrip() {
+        return isTripOwner() || (isMember() && memberRole() in ['editor', 'custom']);
+      }
+
+      allow read: if isSignedIn() && (isTripOwner() || isMember());
+      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow update: if canEditTrip();
+      allow delete: if isTripOwner();
+
+      match /members/{memberUid} {
+        allow read: if isSignedIn() && (isTripOwner() || isMember());
+        // owner manages members directly; anyone else may only create their OWN
+        // membership doc (accepting a link/email invite).
+        allow create: if isSignedIn() && (isTripOwner() || request.auth.uid == memberUid);
+        allow update: if isSignedIn() && isTripOwner();
+        allow delete: if isSignedIn() && (isTripOwner() || request.auth.uid == memberUid);
+      }
+
+      match /invites/{inviteId} {
+        // must be readable by a signed-in non-member to validate a link before joining.
+        allow read: if isSignedIn();
+        allow create: if isSignedIn() && (isTripOwner() || memberRole() in ['editor', 'custom']);
+        allow update, delete: if isSignedIn() && isTripOwner();
+      }
+
+      match /pendingInvites/{pendingId} {
+        allow read: if isSignedIn() && (isTripOwner() || isMember() || resource.data.email == request.auth.token.email);
+        allow create: if isSignedIn() && (isTripOwner() || memberRole() in ['editor', 'custom']);
+        allow update: if isSignedIn() && (isTripOwner() || isMember() || resource.data.email == request.auth.token.email);
+        allow delete: if isSignedIn() && (isTripOwner() || isMember() || resource.data.email == request.auth.token.email);
+      }
+
+      match /activity/{id} {
+        allow read: if isSignedIn() && (isTripOwner() || isMember());
+        allow create: if isSignedIn() && (isTripOwner() || isMember());
+        allow update, delete: if false;
+      }
+
+      match /comments/{id} {
+        allow read: if isSignedIn() && (isTripOwner() || isMember());
+        allow create: if isSignedIn() && (isTripOwner() || isMember());
+        allow update: if isSignedIn() && (isTripOwner() || isMember());
+        allow delete: if isSignedIn() && (isTripOwner() || resource.data.authorId == request.auth.uid);
+      }
+
+      match /proposals/{id} {
+        allow read: if isSignedIn() && (isTripOwner() || isMember());
+        allow create: if isSignedIn() && (isTripOwner() || isMember());
+        allow update: if false;
+        allow delete: if isSignedIn() && (isTripOwner() || resource.data.proposedBy == request.auth.uid);
+      }
+
+      match /presence/{memberUid} {
+        allow read: if isSignedIn() && (isTripOwner() || isMember());
+        allow write: if isSignedIn() && request.auth.uid == memberUid;
+      }
+
+      match /editingLocks/{lockId} {
+        allow read: if isSignedIn() && (isTripOwner() || isMember());
+        allow write: if isSignedIn() && (isTripOwner() || isMember());
+      }
+    }
+  }
+}

@@ -5,7 +5,7 @@ import { requestAiReply } from '../lib/aiClient';
 const PROMPT_CHIPS = ['3박 4일 여행 일정 짜줘', '제주도 자전거 일주 여행 코스 추천해줘', '가족 캠핑 여행 코스'];
 
 export default function AiWizard() {
-  const { data, updateData, showToast } = useTravel();
+  const { data, updateTrip, selectedTripId, showToast } = useTravel();
   const [messages, setMessages] = useState([
     { role: 'assistant', text: '안녕하세요! 어떤 여행을 계획 중이신가요? 기간·지역·스타일을 알려주시면 일정을 짜드릴게요 ✨' },
   ]);
@@ -22,25 +22,22 @@ export default function AiWizard() {
     setMessages(nextMessages);
     setInput('');
     setLoading(true);
-    const reply = await requestAiReply(nextMessages.map((m) => ({ role: m.role, content: m.text })));
+    const firstUserIdx = nextMessages.findIndex((m) => m.role === 'user');
+    const apiMessages = nextMessages.slice(firstUserIdx).map((m) => ({ role: m.role, content: m.text }));
+    const reply = await requestAiReply(apiMessages);
     setMessages((prev) => [...prev, { role: 'assistant', text: reply }]);
     setLoading(false);
   };
 
   const addToTrip = () => {
-    const target = data.trips.find((t) => t.id === data.lastTripId) || data.trips[0];
+    const target = data.trips.find((t) => t.id === selectedTripId) || data.trips[0];
     if (!target || !lastAssistant) return;
-    updateData((d) => ({
-      ...d,
-      trips: d.trips.map((t2) =>
-        t2.id === target.id
-          ? {
-              ...t2,
-              days: t2.days.map((day, di) =>
-                di === 0 ? [...day, { time: '-', name: 'AI 추천 일정', category: 'AI', stay: lastAssistant.text.slice(0, 60) + '…' }] : day
-              ),
-            }
-          : t2
+    updateTrip(target.id, (t) => ({
+      ...t,
+      days: t.days.map((day, di) =>
+        di === 0
+          ? [...day, { id: crypto.randomUUID(), time: '-', name: 'AI 추천 일정', category: 'AI', stay: lastAssistant.text.slice(0, 60) + '…', assigneeId: null }]
+          : day
       ),
     }));
     showToast(`"${target.destination}" 일정에 추가했어요`);
