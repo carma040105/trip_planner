@@ -213,7 +213,7 @@ export default function MapScreen() {
     if (editable) {
       await updateTrip(trip.id, (t) => ({
         ...t,
-        days: t.days.map((day, di) => (di === selectedDay ? [...day, newStop] : day)),
+        days: t.days.map((day, di) => (di === selectedDay ? { stops: [...day.stops, newStop] } : day)),
       }));
       await logActivity(trip.id, { authorId: uid, authorName: myName, type: 'stop_add', message: `"${newStop.name}" 일정을 추가했어요` });
       if (newStop.assigneeId && newStop.assigneeId !== uid) {
