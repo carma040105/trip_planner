@@ -1,12 +1,14 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import {
   createUserWithEmailAndPassword,
+  GoogleAuthProvider,
   onAuthStateChanged,
   signInWithEmailAndPassword,
+  signInWithPopup,
   signOut,
   updateProfile,
 } from 'firebase/auth';
-import { doc, onSnapshot, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { FIREBASE_CONFIGURED } from '../lib/firebaseKeys';
 import { checkPendingInvites } from '../lib/invites';
@@ -79,6 +81,33 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const signInWithGoogle = async () => {
+    setAuthError('');
+    setBusy(true);
+    try {
+      const cred = await signInWithPopup(auth, new GoogleAuthProvider());
+      const ref = doc(db, 'users', cred.user.uid);
+      const snap = await getDoc(ref);
+      if (!snap.exists()) {
+        await setDoc(ref, {
+          name: cred.user.displayName || cred.user.email || '',
+          email: cred.user.email || '',
+          mapPrefs: DEFAULT_MAP_PREFS,
+          fuelType: 'gasoline',
+          createdAt: serverTimestamp(),
+        });
+      }
+    } catch (e) {
+      const code = e?.code || '';
+      if (!code.includes('popup-closed-by-user') && !code.includes('cancelled-popup-request')) {
+        setAuthError(mapAuthError(e));
+      }
+      throw e;
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const signOutUser = () => signOut(auth);
 
   const updateProfileFields = async (fields) => {
@@ -95,6 +124,7 @@ export function AuthProvider({ children }) {
     busy,
     signUp,
     signIn,
+    signInWithGoogle,
     signOutUser,
     updateProfileFields,
   };
@@ -116,5 +146,7 @@ function mapAuthError(e) {
   if (code.includes('user-not-found') || code.includes('wrong-password') || code.includes('invalid-credential')) {
     return '이메일 또는 비밀번호가 올바르지 않아요.';
   }
+  if (code.includes('popup-blocked')) return '팝업이 차단됐어요. 팝업 차단을 해제하고 다시 시도해주세요.';
+  if (code.includes('account-exists-with-different-credential')) return '이미 다른 방식으로 가입된 이메일이에요.';
   return '문제가 발생했어요. 다시 시도해주세요.';
 }
