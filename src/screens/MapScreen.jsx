@@ -11,11 +11,9 @@ import { canEditItinerary, canPropose } from '../lib/permissions';
 import { useEditingLock } from '../lib/presence';
 import { logActivity } from '../lib/activity';
 import { notifyUser } from '../lib/notifications';
-import TimeStaySection from '../components/TimeStaySection.jsx';
-import { AssigneeRow } from '../components/AssigneePicker.jsx';
+import StopFormSheet, { DEFAULT_STOP_FIELDS } from '../components/StopFormSheet.jsx';
 
 const DEFAULT_CENTER = { lat: 37.5665, lng: 126.978 }; // Seoul, fallback when destination geocoding fails/unavailable
-const DEFAULT_STOP_FORM = { time: '09:00', name: '', category: '', stay: '1시간', assigneeId: null };
 
 export default function MapScreen() {
   const { data, updateTrip, members, selectedTripId, selectedDay, mapProviderOverride, setMapProviderOverride, setScreen, showToast } =
@@ -42,13 +40,13 @@ export default function MapScreen() {
   const [sdkError, setSdkError] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [pendingStop, setPendingStop] = useState(null); // { lat, lng }
-  const [stopForm, setStopForm] = useState(DEFAULT_STOP_FORM);
+  const [stopForm, setStopForm] = useState(DEFAULT_STOP_FIELDS);
 
   useEditingLock(selectedTripId, pendingStop ? 'new-stop' : null, uid, myName);
 
   const openStopConfirm = (lat, lng, defaultName) => {
     setPendingStop({ lat, lng });
-    setStopForm({ ...DEFAULT_STOP_FORM, name: defaultName });
+    setStopForm({ ...DEFAULT_STOP_FIELDS, name: defaultName });
   };
 
   // Only fills in the auto-detected place/address name if the user hasn't
@@ -253,9 +251,9 @@ export default function MapScreen() {
     }
   };
 
-  const addPendingStop = async () => {
-    if (!trip || !stopForm.name.trim()) return;
-    const newStop = { ...stopForm, id: crypto.randomUUID(), lat: pendingStop.lat, lng: pendingStop.lng };
+  const addPendingStop = async (fields) => {
+    if (!trip || !pendingStop) return;
+    const newStop = { ...fields, id: crypto.randomUUID(), lat: pendingStop.lat, lng: pendingStop.lng };
 
     if (editable) {
       await updateTrip(trip.id, (t) => ({
@@ -446,67 +444,16 @@ export default function MapScreen() {
       )}
 
       {pendingStop && (
-        <>
-          <div onClick={() => setPendingStop(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(27,43,75,0.45)', zIndex: 40 }} />
-          <div
-            style={{
-              position: 'absolute',
-              left: 0,
-              right: 0,
-              bottom: 0,
-              background: '#fff',
-              borderRadius: '24px 24px 0 0',
-              padding: '20px 20px 34px',
-              zIndex: 41,
-              boxShadow: '0 -10px 26px rgba(27,43,75,0.2)',
-              maxHeight: '80%',
-              overflowY: 'auto',
-            }}
-          >
-            <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)', marginBottom: 14 }}>
-              {editable ? '일정에 장소 추가' : '일정 제안하기'}
-            </div>
-            <input
-              type="text"
-              value={stopForm.name}
-              onChange={(e) => setStopForm((f) => ({ ...f, name: e.target.value }))}
-              placeholder="장소 이름 (자동으로 채워지면 직접 수정 가능)"
-              style={{ width: '100%', boxSizing: 'border-box', border: 'none', outline: 'none', background: 'var(--bg)', borderRadius: 14, padding: '12px 14px', fontSize: 14, marginBottom: 10 }}
-            />
-            <input
-              type="text"
-              value={stopForm.category}
-              onChange={(e) => setStopForm((f) => ({ ...f, category: e.target.value }))}
-              placeholder="분류 (예: 식당)"
-              style={{ width: '100%', boxSizing: 'border-box', border: 'none', outline: 'none', background: 'var(--bg)', borderRadius: 14, padding: '12px 14px', fontSize: 14, marginBottom: 10 }}
-            />
-
-            <TimeStaySection
-              time={stopForm.time}
-              stay={stopForm.stay}
-              onChange={({ time, stay }) => setStopForm((f) => ({ ...f, time, stay }))}
-            />
-
-            {editable && (
-              <div style={{ marginBottom: 4 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--navy)', marginBottom: 4 }}>담당자</div>
-                <AssigneeRow members={members} value={stopForm.assigneeId} onSelect={(id) => setStopForm((f) => ({ ...f, assigneeId: id }))} />
-              </div>
-            )}
-
-            <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-              <div
-                onClick={() => setPendingStop(null)}
-                style={{ flex: 1, textAlign: 'center', padding: 14, borderRadius: 14, background: 'var(--bg)', color: 'var(--text-muted)', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}
-              >
-                취소
-              </div>
-              <div onClick={addPendingStop} style={{ flex: 1, textAlign: 'center', padding: 14, borderRadius: 14, background: 'var(--coral)', color: '#fff', fontWeight: 800, fontSize: 14, cursor: 'pointer' }}>
-                {editable ? '추가' : '제안하기'}
-              </div>
-            </div>
-          </div>
-        </>
+        <StopFormSheet
+          title={editable ? '일정에 장소 추가' : '일정 제안하기'}
+          saveLabel={editable ? '추가' : '제안하기'}
+          value={stopForm}
+          onChange={setStopForm}
+          members={members}
+          showAssignee={editable}
+          onSave={addPendingStop}
+          onClose={() => setPendingStop(null)}
+        />
       )}
     </div>
   );
