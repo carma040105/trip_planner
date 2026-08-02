@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { collection, deleteDoc, doc, onSnapshot, orderBy, query, updateDoc } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useTravel } from '../store/TravelContext.jsx';
 import { useAuth } from '../store/AuthContext.jsx';
@@ -13,7 +13,7 @@ import ShareSheet from '../components/ShareSheet.jsx';
 import ActivityFeed from '../components/ActivityFeed.jsx';
 import CommentSheet from '../components/CommentSheet.jsx';
 import { AssigneeBadge, AssigneeRow } from '../components/AssigneePicker.jsx';
-import StopFormSheet from '../components/StopFormSheet.jsx';
+import StopFormSheet, { DEFAULT_STOP_FIELDS } from '../components/StopFormSheet.jsx';
 import SwipeRow from '../components/SwipeRow.jsx';
 
 const TRANSPORT_ICON = { flight: '✈️', ship: '🚢', car: '🚗' };
@@ -48,12 +48,15 @@ export default function Itinerary() {
   const [proposals, setProposals] = useState([]);
   const [editingIdx, setEditingIdx] = useState(null);
   const [editForm, setEditForm] = useState(null);
+  const [addingTransport, setAddingTransport] = useState(false);
+  const [transportForm, setTransportForm] = useState(null);
 
   const trip = data.trips.find((t) => t.id === selectedTripId);
   const myName = profile?.name || '';
   const onlineIds = usePresence(selectedTripId, uid, myName);
   const locks = useEditingLock(selectedTripId, null, uid, myName);
   useEditingLock(selectedTripId, editForm ? editForm.__lockKey : null, uid, myName);
+  useEditingLock(selectedTripId, addingTransport ? 'new-transport' : null, uid, myName);
 
   useEffect(() => {
     if (!selectedTripId) return;
@@ -145,6 +148,48 @@ export default function Itinerary() {
       notifyUser(clean.assigneeId, { type: 'assigned', tripId: trip.id, message: `${myName}님이 "${clean.name || original.name}" 담당자로 지정했어요` });
     }
     closeEditStop();
+  };
+
+  const openAddTransport = () => {
+    setTransportForm({ ...DEFAULT_STOP_FIELDS, type: 'transport' });
+    setAddingTransport(true);
+  };
+
+  const closeAddTransport = () => {
+    setAddingTransport(false);
+    setTransportForm(null);
+  };
+
+  // Transport legs (flight/ship/car) don't come from tapping a spot on the
+  // map like a place does — added directly from here instead.
+  const addNewTransport = async (fields) => {
+    const newStop = { ...fields, id: crypto.randomUUID(), lat: null, lng: null };
+    const label = newStop.name || TRANSPORT_LABEL[newStop.transportMode] || '이동';
+    if (editable) {
+      await updateTrip(trip.id, (t) => ({
+        ...t,
+        days: t.days.map((day, di) => (di === selectedDay ? { stops: [...day.stops, newStop] } : day)),
+      }));
+      await logActivity(trip.id, { authorId: uid, authorName: myName, type: 'stop_add', message: `"${label}" 일정을 추가했어요` });
+      if (newStop.assigneeId && newStop.assigneeId !== uid) {
+        notifyUser(newStop.assigneeId, { type: 'assigned', tripId: trip.id, message: `${myName}님이 "${label}" 담당자로 지정했어요` });
+      }
+      showToast('일정에 이동수단을 추가했어요');
+    } else if (proposeOnly) {
+      await addDoc(collection(db, 'trips', trip.id, 'proposals'), {
+        dayIndex: selectedDay,
+        stop: newStop,
+        proposedBy: uid,
+        proposedByName: myName,
+        createdAt: serverTimestamp(),
+      });
+      await logActivity(trip.id, { authorId: uid, authorName: myName, type: 'proposal', message: `"${label}" 일정을 제안했어요` });
+      if (trip.ownerId !== uid) {
+        notifyUser(trip.ownerId, { type: 'proposal', tripId: trip.id, message: `${myName}님이 "${label}"을 제안했어요` });
+      }
+      showToast('일정을 제안했어요. 소유자 승인을 기다려주세요');
+    }
+    closeAddTransport();
   };
 
   const respondProposal = async (proposal, approve) => {
@@ -309,22 +354,13 @@ export default function Itinerary() {
         </div>
 
         {(editable || proposeOnly) && (
-          <div
-            onClick={() => setScreen('map')}
-            style={{
-              marginTop: 12,
-              border: '1.5px dashed var(--coral)',
-              borderRadius: 16,
-              padding: 13,
-              textAlign: 'center',
-              color: 'var(--coral)',
-              fontSize: 14,
-              fontWeight: 700,
-              background: 'rgba(255,107,107,0.05)',
-              cursor: 'pointer',
-            }}
-          >
-            {editable ? '+ 장소 추가' : '+ 장소 제안하기'}
+          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+            <div onClick={() => setScreen('map')} style={{ ...dashedButtonStyle, flex: 1 }}>
+              {editable ? '📍 장소 추가' : '📍 장소 제안하기'}
+            </div>
+            <div onClick={openAddTransport} style={{ ...dashedButtonStyle, flex: 1 }}>
+              {editable ? '🚗 이동수단 추가' : '🚗 이동수단 제안하기'}
+            </div>
           </div>
         )}
       </div>
@@ -345,9 +381,33 @@ export default function Itinerary() {
           onClose={closeEditStop}
         />
       )}
+      {addingTransport && transportForm && (
+        <StopFormSheet
+          title={editable ? '이동수단 추가' : '이동수단 제안하기'}
+          saveLabel={editable ? '추가' : '제안하기'}
+          value={transportForm}
+          onChange={setTransportForm}
+          members={members}
+          showAssignee={editable}
+          onSave={addNewTransport}
+          onClose={closeAddTransport}
+        />
+      )}
     </div>
   );
 }
+
+const dashedButtonStyle = {
+  border: '1.5px dashed var(--coral)',
+  borderRadius: 16,
+  padding: 13,
+  textAlign: 'center',
+  color: 'var(--coral)',
+  fontSize: 13,
+  fontWeight: 700,
+  background: 'rgba(255,107,107,0.05)',
+  cursor: 'pointer',
+};
 
 function HeaderIconButton({ emoji, onClick }) {
   return (
