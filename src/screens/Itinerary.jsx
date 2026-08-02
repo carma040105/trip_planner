@@ -13,6 +13,28 @@ import ShareSheet from '../components/ShareSheet.jsx';
 import ActivityFeed from '../components/ActivityFeed.jsx';
 import CommentSheet from '../components/CommentSheet.jsx';
 import { AssigneeBadge, AssigneeRow } from '../components/AssigneePicker.jsx';
+import StopFormSheet from '../components/StopFormSheet.jsx';
+import SwipeRow from '../components/SwipeRow.jsx';
+
+const TRANSPORT_ICON = { flight: '✈️', ship: '🚢', car: '🚗' };
+const TRANSPORT_LABEL = { flight: '항공 이동', ship: '선박 이동', car: '차량 이동' };
+
+function stopIcon(s) {
+  return s.type === 'transport' ? TRANSPORT_ICON[s.transportMode] || '🚗' : '📍';
+}
+
+function stopSubtitle(s) {
+  const parts = [];
+  if (s.type === 'transport') {
+    parts.push(TRANSPORT_LABEL[s.transportMode] || '이동');
+    if (s.transportMode === 'car' && s.rentalCompany) parts.push(s.rentalCompany);
+  } else if (s.category) {
+    parts.push(s.category);
+  }
+  if (s.stay) parts.push(s.stay);
+  if (s.cost) parts.push(`${Number(s.cost).toLocaleString()}원`);
+  return parts.join(' · ');
+}
 
 export default function Itinerary() {
   const { data, updateTrip, members, selectedTripId, selectedDay, setSelectedDay, setScreen, showToast } = useTravel();
@@ -24,11 +46,14 @@ export default function Itinerary() {
   const [assigningKey, setAssigningKey] = useState(null);
   const [comments, setComments] = useState([]);
   const [proposals, setProposals] = useState([]);
+  const [editingIdx, setEditingIdx] = useState(null);
+  const [editForm, setEditForm] = useState(null);
 
   const trip = data.trips.find((t) => t.id === selectedTripId);
   const myName = profile?.name || '';
   const onlineIds = usePresence(selectedTripId, uid, myName);
   const locks = useEditingLock(selectedTripId, null, uid, myName);
+  useEditingLock(selectedTripId, editForm ? editForm.__lockKey : null, uid, myName);
 
   useEffect(() => {
     if (!selectedTripId) return;
@@ -81,6 +106,45 @@ export default function Itinerary() {
     if (assigneeId && assigneeId !== uid) {
       notifyUser(assigneeId, { type: 'assigned', tripId: trip.id, message: `${myName}님이 "${stop.name}" 담당자로 지정했어요` });
     }
+  };
+
+  const openEditStop = (idx, stop) => {
+    if (!editable) return;
+    setEditingIdx(idx);
+    setEditForm({
+      time: stop.time || '09:00',
+      name: stop.name || '',
+      category: stop.category || '',
+      stay: stop.stay || '1시간',
+      assigneeId: stop.assigneeId || null,
+      type: stop.type || 'place',
+      transportMode: stop.transportMode || null,
+      rentalCompany: stop.rentalCompany || null,
+      cost: stop.cost ?? null,
+      __lockKey: stop.id || `edit-${idx}`,
+    });
+  };
+
+  const closeEditStop = () => {
+    setEditingIdx(null);
+    setEditForm(null);
+  };
+
+  const saveEditStop = (fields) => {
+    if (editingIdx === null) return;
+    const original = dayStops[editingIdx];
+    const { __lockKey, ...clean } = fields;
+    updateTrip(trip.id, (t) => ({
+      ...t,
+      days: t.days.map((day, di) =>
+        di === selectedDay ? { stops: day.stops.map((st, i2) => (i2 === editingIdx ? { ...st, ...clean } : st)) } : day
+      ),
+    }));
+    logActivity(trip.id, { authorId: uid, authorName: myName, type: 'stop_edit', message: `"${clean.name || original.name}" 일정을 수정했어요` });
+    if (clean.assigneeId && clean.assigneeId !== original.assigneeId && clean.assigneeId !== uid) {
+      notifyUser(clean.assigneeId, { type: 'assigned', tripId: trip.id, message: `${myName}님이 "${clean.name || original.name}" 담당자로 지정했어요` });
+    }
+    closeEditStop();
   };
 
   const respondProposal = async (proposal, approve) => {
@@ -206,18 +270,24 @@ export default function Itinerary() {
             const assignee = members.find((m) => m.uid === s.assigneeId);
             const lockName = s.id ? locks[s.id] : null;
             const key = s.id || idx;
-            return (
-              <div key={key} className="card" style={{ padding: '12px 14px' }}>
+            const card = (
+              <div className="card" style={{ padding: '12px 14px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div onClick={() => setPreviewStop(s)} style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, cursor: 'pointer' }}>
+                  <div
+                    onClick={() => openEditStop(idx, s)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, cursor: editable ? 'pointer' : 'default' }}
+                  >
                     <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--coral)', width: 44, flexShrink: 0 }}>{s.time}</div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--navy)' }}>{s.name}</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                        {s.category} · {s.stay}
+                      <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--navy)' }}>
+                        {stopIcon(s)} {s.name || (s.type === 'transport' ? TRANSPORT_LABEL[s.transportMode] : '')}
                       </div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{stopSubtitle(s)}</div>
                       {lockName && <div style={{ fontSize: 10, color: 'var(--coral)', fontWeight: 700, marginTop: 2 }}>✏️ {lockName}님이 수정 중</div>}
                     </div>
+                  </div>
+                  <div onClick={() => setPreviewStop(s)} style={{ fontSize: 14, flexShrink: 0, cursor: 'pointer', padding: 4 }}>
+                    🧭
                   </div>
                   <div
                     onClick={() => s.id && setCommentStop(s)}
@@ -226,16 +296,13 @@ export default function Itinerary() {
                     💬 {s.id ? commentCount(s.id) : 0}
                   </div>
                   <AssigneeBadge name={assignee?.name} onClick={editable ? () => setAssigningKey(assigningKey === key ? null : key) : undefined} />
-                  {editable && (
-                    <div
-                      onClick={() => removeStop(idx)}
-                      style={{ fontSize: 14, color: '#c4cad6', padding: 4, cursor: 'pointer', flexShrink: 0 }}
-                    >
-                      ✕
-                    </div>
-                  )}
                 </div>
                 {assigningKey === key && <AssigneeRow members={members} value={s.assigneeId} onSelect={(id) => setStopAssignee(idx, id)} />}
+              </div>
+            );
+            return (
+              <div key={key}>
+                {editable ? <SwipeRow onDelete={() => removeStop(idx)}>{card}</SwipeRow> : card}
               </div>
             );
           })}
@@ -266,6 +333,18 @@ export default function Itinerary() {
       {showShare && <ShareSheet trip={trip} members={members} uid={uid} myName={myName} onClose={() => setShowShare(false)} showToast={showToast} />}
       {showActivity && <ActivityFeed tripId={trip.id} onClose={() => setShowActivity(false)} />}
       {commentStop && <CommentSheet tripId={trip.id} stop={commentStop} members={members} uid={uid} myName={myName} onClose={() => setCommentStop(null)} />}
+      {editForm && (
+        <StopFormSheet
+          title="일정 수정"
+          saveLabel="저장"
+          value={editForm}
+          onChange={setEditForm}
+          members={members}
+          showAssignee={editable}
+          onSave={saveEditStop}
+          onClose={closeEditStop}
+        />
+      )}
     </div>
   );
 }
